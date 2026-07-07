@@ -87,6 +87,9 @@
   .bar.cr{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;}
   .bar .ev-k{font-size:10.5px;font-weight:500;color:var(--txt);opacity:.72;flex:none;letter-spacing:.02em;}
   .bar .ev-t{font-size:12px;font-weight:400;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .more{border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:10.5px;font-weight:400;
+    color:var(--ink-2);text-align:left;padding:0 7px;margin:1px 3px;z-index:1;}
+  .more:hover{color:var(--ink);text-decoration:underline;}
 
   .btn-add{border:1px dashed var(--ink-3);background:var(--surface);color:var(--ink);border-radius:9px;padding:8px 13px;
     font-family:inherit;font-weight:400;font-size:13px;cursor:pointer;}
@@ -431,7 +434,7 @@ function renderWeek(weekStart){
       cl:t.startDate<wsStr, cr:t.endDate>weStr}))
     .sort((a,b)=> a.s-b.s || (b.e-b.s)-(a.e-a.s) || a.t.startTime.localeCompare(b.t.startTime));
 
-  const CAP=6, lanes=[];
+  const CAP=8, lanes=[];
   evs.forEach(ev=>{
     let placed=false;
     for(let l=0;l<lanes.length;l++){
@@ -440,8 +443,13 @@ function renderWeek(weekStart){
     if(!placed){ if(lanes.length<CAP){ lanes.push([ev]); ev.lane=lanes.length-1; } else ev.lane=-1; }
   });
 
+  // 칸을 못 받은(=CAP 초과) 과정은 요일별로 "+N개 더보기"로 안내 (데이터는 항상 날짜 클릭 시 전부 보임)
+  const overflow=[0,0,0,0,0,0,0];
+  evs.forEach(ev=>{ if(ev.lane<0){ for(let i=ev.s;i<=ev.e;i++) overflow[i]++; } });
+  const hasOverflow = overflow.some(c=>c>0);
+
   const week=document.createElement('div'); week.className='week';
-  week.style.gridTemplateRows = `28px repeat(${lanes.length}, 22px) 1fr`;
+  week.style.gridTemplateRows = `28px repeat(${lanes.length}, 22px)${hasOverflow?' 18px':''} 1fr`;
 
   days.forEach((d,ci)=>{
     const dstr=iso(d), dow=d.getDay(), inMonth=d.getMonth()===viewM;
@@ -456,6 +464,21 @@ function renderWeek(weekStart){
     if(inMonth){ bg.style.cursor='pointer'; bg.onclick=()=>openDay(dstr); }
     week.appendChild(bg);
   });
+
+  if(hasOverflow){
+    const moreRow=lanes.length+2;
+    overflow.forEach((cnt,ci)=>{
+      if(!cnt) return;
+      const dstr=iso(days[ci]);
+      const m=document.createElement('button');
+      m.className='more';
+      m.style.gridColumn=(ci+1);
+      m.style.gridRow=moreRow;
+      m.textContent=`+${cnt}개 더보기`;
+      m.onclick=(e)=>{ e.stopPropagation(); openDay(dstr); };
+      week.appendChild(m);
+    });
+  }
 
   evs.forEach(ev=>{
     if(ev.lane<0) return;
