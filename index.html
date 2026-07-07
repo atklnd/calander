@@ -370,6 +370,7 @@ async function loadTrainings(){
     startTime:(r.start_time||'').slice(0,5), endTime:(r.end_time||'').slice(0,5),
     instructor:r.instructor||'', room:r.room||'', owner:r.owner||'',
     createdBy:r.created_by, createdByName: r.created_by ? (profileMap[r.created_by]||'알 수 없음') : '-',
+    capacity: (r.capacity===null || r.capacity===undefined) ? null : r.capacity,
   }));
 }
 
@@ -493,7 +494,7 @@ function openDay(dstr){
     div.innerHTML=`<span class="mk">${siteLabel(t.site)}</span>
       <div class="mt">${esc(t.title)}</div>
       <div class="md"><b class="num">${t.startTime}–${t.endTime}</b>${spanTag} · 강의실 <b>${esc(t.room||'-')}</b>${rangeTag}<br>
-      강사 <b>${esc(t.instructor||'-')}</b> · 담당자 <b>${esc(t.owner||'-')}</b><br>
+      강사 <b>${esc(t.instructor||'-')}</b> · 담당자 <b>${esc(t.owner||'-')}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b><br>
       <span class="reg">등록: ${esc(t.createdByName||'-')}</span></div>
       ${isOwner?`<div class="mrow-actions"><button class="act edit">수정</button></div>`:''}`;
     const eb=div.querySelector('.edit'); if(eb) eb.onclick=()=>{ closeModal(); openEditCourse(t.id); };
@@ -513,7 +514,7 @@ function showBarTooltip(e, t){
   tooltipEl.innerHTML = `<span class="bt-site">${siteLabel(t.site)}</span>
     <div class="bt-title">${esc(t.title)}</div>
     <div class="bt-row num">${dateLine}</div>
-    <div class="bt-row">시간 <b class="num">${t.startTime}–${t.endTime}</b></div>
+    <div class="bt-row">시간 <b class="num">${t.startTime}–${t.endTime}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b></div>
     <div class="bt-row">강의실 <b>${esc(t.room||'-')}</b></div>
     <div class="bt-row">강사 <b>${esc(t.instructor||'-')}</b> · 담당자 <b>${esc(t.owner||'-')}</b></div>`;
   positionTooltip(e);
@@ -663,7 +664,7 @@ function renderCourseList(){
     item.innerHTML=`<span class="ci-dot"></span>
       <div class="ci-main">
         <div class="ci-title">${esc(t.title||'(제목 없음)')}</div>
-        <div class="ci-meta"><span class="num">${dateStr}</span> · <span class="num">${t.startTime}–${t.endTime}</span> · ${esc(t.room||'-')} · 강사 ${esc(t.instructor||'-')}</div>
+        <div class="ci-meta"><span class="num">${dateStr}</span> · <span class="num">${t.startTime}–${t.endTime}</span> · ${esc(t.room||'-')} · 강사 ${esc(t.instructor||'-')} · 인원 ${t.capacity!=null?t.capacity+'명':'미정'}</div>
       </div>
       ${canEdit?`<button class="ci-del" title="삭제">🗑</button>`:''}`;
     item.onclick=(e)=>{ if(e.target.closest('.ci-del')) return; renderCourseForm(t.id); };
@@ -716,6 +717,7 @@ function renderCourseForm(rid){
       <div class="field"><label>강사</label><input id="fIns" type="text" value="${esc(t.instructor)}" placeholder="강사명"></div>
       <div class="field"><label>강의실</label><input id="fRoom" type="text" value="${esc(t.room)}" placeholder="강의실"></div>
       <div class="field"><label>담당자</label><input id="fOwn" type="text" value="${esc(t.owner)}" placeholder="담당자"></div>
+      <div class="field"><label>교육 인원 수</label><input id="fCap" type="number" min="0" class="num" value="${t.capacity!=null?t.capacity:''}" placeholder="예: 20"></div>
       <div id="fErr" class="auth-err"></div>
       <div class="form-foot">
         ${editing?'<button class="btn-del-text" id="fDel">이 교육 삭제</button>':'<span></span>'}
@@ -737,8 +739,10 @@ function renderCourseForm(rid){
     const fErr=el('fErr'); fErr.textContent='';
     if(!title){ el('fTitle').focus(); el('fTitle').style.borderColor='var(--red)'; el('fTitle').style.boxShadow='0 0 0 3px rgba(214,69,91,.15)'; return; }
     let sd=el('fSd').value, ed=el('fEd').value; if(ed<sd) ed=sd;
+    const capRaw=el('fCap').value.trim();
+    const capacity = capRaw===''? null : Math.max(0, parseInt(capRaw,10)||0);
     const payload={ site:s, title, start_date:sd, end_date:ed, start_time:el('fSt').value, end_time:el('fEt').value,
-      instructor:el('fIns').value.trim(), room:el('fRoom').value.trim(), owner:el('fOwn').value.trim() };
+      instructor:el('fIns').value.trim(), room:el('fRoom').value.trim(), owner:el('fOwn').value.trim(), capacity };
     const btn=el('fSave'); btn.disabled=true; btn.textContent='저장 중…';
     try{
       if(editing){
@@ -805,7 +809,7 @@ async function renderMembers(){
 }
 
 /* ===== 엑셀 다운로드 / 일괄 등록 ===== */
-const EXCEL_HEADERS = ['사업장','교육명','시작일','종료일','시작시간','종료시간','강사','강의실','담당자'];
+const EXCEL_HEADERS = ['사업장','교육명','시작일','종료일','시작시간','종료시간','강사','강의실','담당자','인원'];
 
 function exportExcel(){
   const rows = trainings.slice()
@@ -813,10 +817,10 @@ function exportExcel(){
     .map(t=>({
       '사업장':t.site, '교육명':t.title, '시작일':t.startDate, '종료일':t.endDate,
       '시작시간':t.startTime, '종료시간':t.endTime,
-      '강사':t.instructor||'', '강의실':t.room||'', '담당자':t.owner||'',
+      '강사':t.instructor||'', '강의실':t.room||'', '담당자':t.owner||'', '인원':t.capacity!=null?t.capacity:'',
     }));
   const ws = XLSX.utils.json_to_sheet(rows, {header:EXCEL_HEADERS});
-  ws['!cols'] = [{wch:9},{wch:28},{wch:12},{wch:12},{wch:9},{wch:9},{wch:12},{wch:16},{wch:12}];
+  ws['!cols'] = [{wch:9},{wch:28},{wch:12},{wch:12},{wch:9},{wch:9},{wch:12},{wch:16},{wch:12},{wch:8}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '교육목록');
   const d=new Date();
@@ -863,6 +867,7 @@ async function renderTableMode(){
     <th style="min-width:96px;">강사</th>
     <th style="min-width:120px;">강의실</th>
     <th style="min-width:96px;">담당자</th>
+    <th style="width:72px;">인원</th>
     <th style="width:36px;"></th>
   </tr></thead><tbody id="tblBody"></tbody></table>`;
   body.appendChild(wrap);
@@ -882,10 +887,10 @@ function renderTableRows(){
     const msg = trainings.length
       ? '선택한 사업장에 등록된 교육이 없습니다.'
       : '등록된 교육이 없습니다. 아래 <b>+ 행 추가</b>로 등록하세요.';
-    tb.innerHTML=`<tr><td colspan="10" style="padding:18px;color:var(--ink-3);">${msg}</td></tr>`;
+    tb.innerHTML=`<tr><td colspan="11" style="padding:18px;color:var(--ink-3);">${msg}</td></tr>`;
     return;
   }
-  const colMap={site:'site',title:'title',startDate:'start_date',endDate:'end_date',startTime:'start_time',endTime:'end_time',instructor:'instructor',room:'room',owner:'owner'};
+  const colMap={site:'site',title:'title',startDate:'start_date',endDate:'end_date',startTime:'start_time',endTime:'end_time',instructor:'instructor',room:'room',owner:'owner',capacity:'capacity'};
   rows.forEach(t=>{
     const canEdit = currentUser && (currentUser.id===t.createdBy || currentUser.isAdmin);
     const tr=document.createElement('tr'); tr.dataset.id=t.id;
@@ -900,15 +905,18 @@ function renderTableRows(){
       <td><input data-f="instructor" value="${esc(t.instructor)}" ${canEdit?'':'disabled'}></td>
       <td><input data-f="room" value="${esc(t.room)}" ${canEdit?'':'disabled'}></td>
       <td><input data-f="owner" value="${esc(t.owner)}" ${canEdit?'':'disabled'}></td>
+      <td><input type="number" min="0" class="num" data-f="capacity" value="${t.capacity!=null?t.capacity:''}" placeholder="-" ${canEdit?'':'disabled'}></td>
       <td>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</td>`;
     if(canEdit){
       tr.querySelectorAll('[data-f]').forEach(inp=>{
         inp.addEventListener('change', async ()=>{
           const field=inp.dataset.f;
-          const payload={ [colMap[field]]: inp.value };
+          let val = inp.value;
+          if(field==='capacity'){ val = val.trim()===''? null : Math.max(0, parseInt(val,10)||0); inp.value = val==null?'':val; }
+          const payload={ [colMap[field]]: val };
           if(field==='startDate'){
             const endInput=tr.querySelector('[data-f="endDate"]');
-            if(endInput.value < inp.value){ endInput.value = inp.value; payload.end_date = inp.value; }
+            if(endInput.value < val){ endInput.value = val; payload.end_date = val; }
           }
           const {error}=await sb.from('trainings').update(payload).eq('id', t.id);
           if(error){ alert('저장 실패: '+error.message); }
@@ -932,7 +940,7 @@ async function addTableRow(){
   const base=`${viewY}-${String(viewM+1).padStart(2,'0')}-15`;
   const defaultSite=Object.keys(SITES)[0];
   const payload={ site:defaultSite, title:'', start_date:base, end_date:base, start_time:'09:00', end_time:'12:00',
-    instructor:'', room:'', owner:'', created_by:currentUser.id };
+    instructor:'', room:'', owner:'', capacity:null, created_by:currentUser.id };
   const {data,error}=await sb.from('trainings').insert(payload).select().single();
   if(error){ alert('추가 실패: '+error.message); return; }
   tableFilter[defaultSite]=true;
