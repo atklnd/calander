@@ -115,6 +115,10 @@
   .mrow .md{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.7;}
   .mrow .md b{color:var(--ink);font-weight:500;}
   .mrow .reg{font-size:11.5px;color:var(--ink-3);}
+  .attach-row{margin-top:9px;}
+  .attach-link{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);
+    border-radius:9px;padding:7px 12px;font-size:12.5px;color:var(--ink);text-decoration:none;}
+  .attach-link:hover{border-color:var(--ink-3);}
   .memo-box{margin-top:9px;background:#FFF6DD;border-left:3px solid #E9A400;border-radius:8px;
     padding:9px 11px;font-size:12.5px;color:#6B4E00;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
   .mrow-actions{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;}
@@ -382,6 +386,7 @@ async function loadTrainings(){
     createdBy:r.created_by, createdByName: r.created_by ? (profileMap[r.created_by]||'알 수 없음') : '-',
     capacity: (r.capacity===null || r.capacity===undefined) ? null : r.capacity,
     memo: r.memo||'',
+    attachmentPath: r.attachment_path||null, attachmentName: r.attachment_name||null,
   }));
 }
 
@@ -400,7 +405,9 @@ viewY = TODAY.getFullYear(); viewM = TODAY.getMonth();
 const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const daysBetween = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+function isBiz(dstr){ const d=new Date(dstr+'T00:00:00'); const dow=d.getDay(); return dow!==0 && dow!==6 && !HOLIDAYS[dstr]; }
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function attachmentUrl(path){ const {data}=sb.storage.from('materials').getPublicUrl(path); return data.publicUrl; }
 
 function renderLegend(){
   const el = document.getElementById('legend'); el.innerHTML='';
@@ -434,13 +441,29 @@ function renderWeek(weekStart){
   const weStr = iso(weekEnd);
   const days = []; for(let i=0;i<7;i++){ const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); days.push(d); }
 
-  const evs = trainings
+  const bizMask = days.map(d=>{ const dow=d.getDay(); return dow!==0 && dow!==6 && !HOLIDAYS[iso(d)]; });
+
+  // 토/일/공휴일에는 교육이 있을 수 없으므로, 날짜 구간을 "평일 연속 구간"들로 쪼개서 막대를 그린다
+  const evs=[];
+  trainings
     .filter(t=>activeSites[t.site] && t.startDate<=weStr && t.endDate>=wsStr)
-    .map(t=>({t,
-      s:clamp(daysBetween(wsStr,t.startDate),0,6),
-      e:clamp(daysBetween(wsStr,t.endDate),0,6),
-      cl:t.startDate<wsStr, cr:t.endDate>weStr}))
-    .sort((a,b)=> a.s-b.s || (b.e-b.s)-(a.e-a.s) || a.t.startTime.localeCompare(b.t.startTime));
+    .forEach(t=>{
+      const s0=clamp(daysBetween(wsStr,t.startDate),0,6);
+      const e0=clamp(daysBetween(wsStr,t.endDate),0,6);
+      let runStart=null;
+      for(let i=s0; i<=e0+1; i++){
+        const biz = i<=e0 && bizMask[i];
+        if(biz){ if(runStart===null) runStart=i; }
+        else if(runStart!==null){
+          const rs=runStart, re=i-1;
+          evs.push({ t, s:rs, e:re,
+            cl: iso(days[rs]) > t.startDate,
+            cr: iso(days[re]) < t.endDate });
+          runStart=null;
+        }
+      }
+    });
+  evs.sort((a,b)=> a.s-b.s || (b.e-b.s)-(a.e-a.s) || a.t.startTime.localeCompare(b.t.startTime));
 
   const CAP=8, lanes=[];
   evs.forEach(ev=>{
@@ -514,8 +537,15 @@ function openDay(dstr){
   const holi=HOLIDAYS[dstr];
   document.getElementById('modalTitle').innerHTML = `${+y}년 ${+m}월 ${+dd}일` + (holi?`<span class="htag">${esc(holi)}</span>`:'');
   const body=document.getElementById('modalBody'); body.innerHTML='';
-  const list = trainings.filter(t=>t.startDate<=dstr && dstr<=t.endDate && activeSites[t.site]).sort((a,b)=>a.startTime.localeCompare(b.startTime));
-  if(!list.length){ body.innerHTML='<div class="empty">이 날짜에 등록된 교육이 없습니다.</div>'; }
+  // 토/일/공휴일에는 교육이 있을 수 없음
+  const list = isBiz(dstr)
+    ? trainings.filter(t=>t.startDate<=dstr && dstr<=t.endDate && activeSites[t.site]).sort((a,b)=>a.startTime.localeCompare(b.startTime))
+    : [];
+  if(!list.length){
+    body.innerHTML = isBiz(dstr)
+      ? '<div class="empty">이 날짜에 등록된 교육이 없습니다.</div>'
+      : '<div class="empty">주말·공휴일에는 교육이 진행되지 않습니다.</div>';
+  }
   list.forEach(t=>{
     const total=daysBetween(t.startDate,t.endDate)+1, idx=daysBetween(t.startDate,dstr)+1;
     const spanTag = total>1 ? ` · <b class="num">${idx}/${total}일차</b>` : '';
@@ -528,6 +558,7 @@ function openDay(dstr){
       강사 <b>${esc(t.instructor||'-')}</b> · 담당자 <b>${esc(t.owner||'-')}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b><br>
       <span class="reg">등록: ${esc(t.createdByName||'-')}</span></div>
       ${t.memo?`<div class="memo-box">📝 ${esc(t.memo).replace(/\n/g,'<br>')}</div>`:''}
+      ${t.attachmentPath?`<div class="attach-row"><a class="attach-link" href="${attachmentUrl(t.attachmentPath)}" target="_blank" rel="noopener" download>📎 ${esc(t.attachmentName||'첨부파일')} 다운로드</a></div>`:''}
       ${isOwner?`<div class="mrow-actions"><button class="act edit">수정</button></div>`:''}`;
     const eb=div.querySelector('.edit'); if(eb) eb.onclick=()=>{ closeModal(); openEditCourse(t.id); };
     body.appendChild(div);
@@ -697,7 +728,7 @@ function renderCourseList(){
     item.innerHTML=`<span class="ci-dot"></span>
       <div class="ci-main">
         <div class="ci-title">${esc(t.title||'(제목 없음)')}</div>
-        <div class="ci-meta"><span class="num">${dateStr}</span> · <span class="num">${t.startTime}–${t.endTime}</span> · ${esc(t.room||'-')} · 강사 ${esc(t.instructor||'-')} · 인원 ${t.capacity!=null?t.capacity+'명':'미정'}${t.memo?' · 📝 메모':''}</div>
+        <div class="ci-meta"><span class="num">${dateStr}</span> · <span class="num">${t.startTime}–${t.endTime}</span> · ${esc(t.room||'-')} · 강사 ${esc(t.instructor||'-')} · 인원 ${t.capacity!=null?t.capacity+'명':'미정'}${t.memo?' · 📝 메모':''}${t.attachmentPath?' · 📎 첨부':''}</div>
       </div>
       ${canEdit?`<button class="ci-del" title="삭제">🗑</button>`:''}`;
     item.onclick=(e)=>{ if(e.target.closest('.ci-del')) return; renderCourseForm(t.id); };
@@ -752,6 +783,11 @@ function renderCourseForm(rid){
       <div class="field"><label>담당자</label><input id="fOwn" type="text" value="${esc(t.owner)}" placeholder="담당자"></div>
       <div class="field"><label>교육 인원 수</label><input id="fCap" type="number" min="0" class="num" value="${t.capacity!=null?t.capacity:''}" placeholder="예: 20"></div>
       <div class="field"><label>MEMO (주의사항·특이사항)</label><textarea id="fMemo" placeholder="확인이 필요한 사항이나 특이점을 자유롭게 적어주세요">${esc(t.memo||'')}</textarea></div>
+      <div class="field"><label>첨부파일 (교안)</label>
+        <div id="attachCurrent">${t.attachmentPath?`<a href="${attachmentUrl(t.attachmentPath)}" target="_blank" rel="noopener">📎 ${esc(t.attachmentName||'첨부파일')}</a> <button type="button" id="fAttachRemove" class="btn-cancel" style="padding:4px 10px;font-size:12px;">제거</button>`:'<span style="color:var(--ink-3);font-size:12.5px;">첨부된 파일 없음</span>'}</div>
+        <input type="file" id="fAttachFile" style="margin-top:8px;">
+        <span style="display:block;margin-top:4px;font-size:11.5px;color:var(--ink-3);">최대 50MB</span>
+      </div>
       <div id="fErr" class="auth-err"></div>
       <div class="form-foot">
         ${editing?'<button class="btn-del-text" id="fDel">이 교육 삭제</button>':'<span></span>'}
@@ -762,6 +798,12 @@ function renderCourseForm(rid){
       </div>
     </div>`;
   const el=q=>document.getElementById(q);
+  let removeAttachment=false;
+  const attachRemoveBtn=el('fAttachRemove');
+  if(attachRemoveBtn) attachRemoveBtn.onclick=()=>{
+    removeAttachment=true;
+    el('attachCurrent').innerHTML='<span style="color:var(--ink-3);font-size:12.5px;">삭제 예정 (저장 시 반영)</span>';
+  };
   el('fTitle').focus();
   el('fCancel').onclick=renderCourseList;
   if(editing) el('fDel').onclick=async ()=>{
@@ -780,6 +822,22 @@ function renderCourseForm(rid){
       memo: el('fMemo').value.trim() };
     const btn=el('fSave'); btn.disabled=true; btn.textContent='저장 중…';
     try{
+      const newFile = el('fAttachFile').files[0];
+      if(newFile && newFile.size > 50*1024*1024){ fErr.textContent='파일이 50MB를 초과합니다.'; btn.disabled=false; btn.textContent='저장'; return; }
+      let attachment_path = t.attachmentPath||null, attachment_name = t.attachmentName||null;
+      if(newFile){
+        if(t.attachmentPath){ await sb.storage.from('materials').remove([t.attachmentPath]); }
+        const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${newFile.name}`.replace(/\s+/g,'_');
+        const {error:upErr} = await sb.storage.from('materials').upload(key, newFile, {upsert:false});
+        if(upErr) throw upErr;
+        attachment_path = key; attachment_name = newFile.name;
+      } else if(removeAttachment && t.attachmentPath){
+        await sb.storage.from('materials').remove([t.attachmentPath]);
+        attachment_path = null; attachment_name = null;
+      }
+      payload.attachment_path = attachment_path;
+      payload.attachment_name = attachment_name;
+
       if(editing){
         const {error}=await sb.from('trainings').update(payload).eq('id', rid);
         if(error) throw error;
