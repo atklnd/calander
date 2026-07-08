@@ -100,6 +100,9 @@
   .overlay.open{display:flex;}
   .modal{background:var(--surface);border-radius:16px;max-width:440px;width:100%;box-shadow:0 24px 60px rgba(16,24,38,.35);overflow:hidden;}
   .modal.manage{max-width:720px;}
+  .modal.daylist{max-width:820px;}
+  #modalBody{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;align-content:start;max-height:72vh;}
+  #modalBody .empty{grid-column:1/-1;}
   .modal.auth-modal{max-width:400px;}
   .modal-h{padding:18px 20px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;}
   .modal-h h3{margin:0;font-size:17px;font-weight:500;}
@@ -109,8 +112,17 @@
   .modal-h .back{border:none;background:var(--line-2);cursor:pointer;width:30px;height:30px;border-radius:8px;font-size:16px;color:var(--ink-2);flex:none;}
   .modal-b{padding:16px 20px 20px;max-height:64vh;overflow:auto;display:flex;flex-direction:column;gap:10px;}
 
-  .mrow{background:var(--soft);border-radius:10px;padding:13px 15px;}
-  .mrow .mt{font-size:14.5px;font-weight:500;color:var(--ink);margin-top:2px;}
+  .mrow{background:var(--soft);border-radius:10px;padding:9px 12px;min-width:0;}
+  .mrow-top{display:flex;align-items:center;gap:7px;}
+  .mrow-top .mt{flex:1;min-width:0;font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mrow-top .act.edit{flex:none;padding:4px 10px;font-size:11.5px;}
+  .md2{font-size:11.5px;color:var(--ink-2);margin-top:5px;line-height:1.6;}
+  .md2 b{color:var(--ink);font-weight:500;}
+  .memo-inline{color:#8A6400;}
+  .changelog-item{border-bottom:1px solid var(--line-2);padding:10px 2px;font-size:13px;color:var(--ink);line-height:1.65;}
+  .changelog-item:last-child{border-bottom:none;}
+  .changelog-num{color:var(--ink-3);font-size:11.5px;margin-right:7px;}
+  .attach-inline{color:var(--ink);text-decoration:underline;}
   .mrow .mk{display:inline-block;background:var(--c);color:var(--txt);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:400;}
   .mrow .md{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.7;}
   .mrow .md b{color:var(--ink);font-weight:500;}
@@ -231,6 +243,7 @@
     <div class="legend" id="legend"></div>
     <div class="right">
       <div class="auth" id="authArea"></div>
+      <button class="btn-ghost" id="changelogBtn">업데이트 내역</button>
       <button class="btn-ghost" id="exportBtn">엑셀 다운로드</button>
       <button class="btn-ghost" id="membersBtn" style="display:none">회원 관리</button>
       <button class="btn-primary" id="quickAdd">+ 교육 등록</button>
@@ -246,7 +259,7 @@
 </div>
 
 <div class="overlay" id="overlay">
-  <div class="modal">
+  <div class="modal daylist">
     <div class="modal-h">
       <h3 id="modalTitle">일정</h3>
       <button class="x" id="modalClose" aria-label="닫기">✕</button>
@@ -273,6 +286,16 @@
       <button class="x" id="authClose" aria-label="닫기">✕</button>
     </div>
     <div class="modal-b" id="authBody"></div>
+  </div>
+</div>
+
+<div class="overlay" id="changelogOverlay">
+  <div class="modal" style="max-width:540px;">
+    <div class="modal-h">
+      <h3>업데이트 내역</h3>
+      <button class="x" id="changelogClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-b" id="changelogBody"></div>
   </div>
 </div>
 
@@ -522,8 +545,15 @@ function renderWeek(weekStart){
     bar.style.gridColumn=`${ev.s+1} / span ${ev.e-ev.s+1}`;
     bar.style.gridRow=`${ev.lane+2}`;
     bar.innerHTML=`<span class="ev-k">${ev.t.site}</span><span class="ev-t">${esc(ev.t.title)}</span>${ev.t.memo?'<span class="ev-memo" title="메모 있음">📝</span>':''}`;
-    const clickDay=iso(days[ev.s]);
-    bar.onclick=(e)=>{ e.stopPropagation(); openDay(clickDay); };
+    // 막대는 여러 날짜에 걸쳐 있으므로, 실제 클릭한 x좌표로 어느 날짜 칸을 눌렀는지 계산해서 그 날짜로 연다
+    bar.onclick=(e)=>{
+      e.stopPropagation();
+      const rect=bar.getBoundingClientRect();
+      const segDays=ev.e-ev.s+1;
+      let idx = rect.width>0 ? Math.floor((e.clientX-rect.left)/(rect.width/segDays)) : 0;
+      idx = Math.max(0, Math.min(segDays-1, idx));
+      openDay(iso(days[ev.s+idx]));
+    };
     if(HOVER_CAPABLE){
       bar.addEventListener('mouseenter', (e)=>showBarTooltip(e, ev.t));
       bar.addEventListener('mousemove', positionTooltip);
@@ -552,17 +582,19 @@ function openDay(dstr){
   list.forEach(t=>{
     const total=daysBetween(t.startDate,t.endDate)+1, idx=daysBetween(t.startDate,dstr)+1;
     const spanTag = total>1 ? ` · <b class="num">${idx}/${total}일차</b>` : '';
-    const rangeTag = total>1 ? `<br>기간 <b class="num">${t.startDate} ~ ${t.endDate}</b>` : '';
+    const rangeTag = total>1 ? ` · 기간 <b class="num">${t.startDate}~${t.endDate}</b>` : '';
     const isOwner = currentUser && (currentUser.id===t.createdBy || currentUser.isAdmin);
+    const memoExcerpt = t.memo ? (t.memo.length>36 ? t.memo.slice(0,36)+'…' : t.memo) : '';
     const div=document.createElement('div'); div.className='mrow'; div.style.cssText=styleVars(t.site);
-    div.innerHTML=`<span class="mk">${siteLabel(t.site)}</span>
-      <div class="mt">${esc(t.title)}</div>
-      <div class="md"><b class="num">${t.startTime}–${t.endTime}</b>${spanTag} · 강의실 <b>${esc(t.room||'-')}</b>${rangeTag}<br>
-      강사 <b>${esc(t.instructor||'-')}</b> · 담당자 <b>${esc(t.owner||'-')}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b><br>
-      <span class="reg">등록: ${esc(t.createdByName||'-')}</span></div>
-      ${t.memo?`<div class="memo-box">📝 ${esc(t.memo).replace(/\n/g,'<br>')}</div>`:''}
-      ${t.attachmentPath?`<div class="attach-row"><a class="attach-link" href="${attachmentUrl(t.attachmentPath)}" target="_blank" rel="noopener" download>📎 ${esc(t.attachmentName||'첨부파일')} 다운로드</a></div>`:''}
-      ${isOwner?`<div class="mrow-actions"><button class="act edit">수정</button></div>`:''}`;
+    div.innerHTML=`
+      <div class="mrow-top">
+        <span class="mk">${siteLabel(t.site)}</span>
+        <span class="mt" title="${esc(t.title)}">${esc(t.title)}</span>
+        ${isOwner?`<button class="act edit">수정</button>`:''}
+      </div>
+      <div class="md2">
+        <b class="num">${t.startTime}–${t.endTime}</b>${spanTag} · <b>${esc(t.room||'-')}</b>${rangeTag} · 강사 <b>${esc(t.instructor||'-')}</b> · 담당 <b>${esc(t.owner||'-')}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b> · 등록 <b>${esc(t.createdByName||'-')}</b>${memoExcerpt?` · <span class="memo-inline" title="${esc(t.memo)}">📝 ${esc(memoExcerpt)}</span>`:''}${t.attachmentPath?` · <a class="attach-inline" href="${attachmentUrl(t.attachmentPath)}" target="_blank" rel="noopener" download>📎 ${esc(t.attachmentName||'첨부파일')}</a>`:''}
+      </div>`;
     const eb=div.querySelector('.edit'); if(eb) eb.onclick=()=>{ closeModal(); openEditCourse(t.id); };
     body.appendChild(div);
   });
@@ -1091,6 +1123,38 @@ async function addTableRow(){
   });
 }
 
+/* ===== 업데이트 내역 ===== */
+const CHANGELOG = [
+  '큰 월간 캘린더 + 사업장별(K3/K4/K5) 색상 구분 기본 화면 제작',
+  '캘린더 표시를 1줄 요약 + 사업장 코드 표기로 정리, 시작일·종료일 분리 지원',
+  '주말(토/일) 열 폭 축소, Noto Sans KR 폰트 적용, 대한민국 공휴일·대체공휴일 표시',
+  '교육 목록을 별도 팝업 폼 등록 방식으로 변경 (교육명이 잘려 보이던 문제 해결)',
+  '네온 컬러(K3 그린·K4 시안·K5 핫핑크)로 사업장 색상 변경, 굵은 글씨 제거해 가독성 개선',
+  '오늘 날짜 표시를 채워진 마커 대신 파스텔 배경으로 변경',
+  'Supabase 연동: 이메일 회원가입/로그인, 교육 등록·수정·삭제가 실제 데이터베이스에 저장되도록 구현',
+  '관리자 권한 기능 추가 (모든 교육 수정·삭제, 회원 이름·관리자 권한 관리 화면)',
+  '교육 신청 기능 삭제 (신청·정원 관리 도구가 아닌 조회 전용 캘린더로 목적 명확화)',
+  '"연수원" 사업장 항목 추가',
+  '캘린더 막대에 마우스를 올리면 상세 정보가 뜨는 호버 툴팁 추가',
+  '엑셀 다운로드 기능 추가',
+  '"Table 형태로 등록·수정" 화면 추가 (사업장별 필터 포함), 이후 엑셀 일괄등록 기능은 제거',
+  '"교육 인원 수" 항목 추가',
+  '캘린더 그리드 선을 진하게, 날짜 숫자를 더 크고 또렷하게 개선',
+  '"MEMO(주의사항·특이사항)" 항목 추가',
+  '첨부파일(교안) 업로드·다운로드 기능 추가',
+  '토·일·공휴일에는 교육이 표시되지 않도록 캘린더 로직 수정 (해당 구간은 건너뛰고 평일만 이어서 표시)',
+  'Table 모드에 "복사" 기능과, 모든 항목이 완전히 동일한 행을 자동으로 같은 색으로 표시하는 기능 추가',
+  '여러 날짜에 걸친 막대 클릭 시, 실제 클릭한 날짜 기준으로 정확한 상세 팝업이 뜨도록 수정',
+  '날짜 상세 팝업을 가로로 넓히고 항목당 높이를 줄여, 한 화면에 더 많은 과정이 보이도록 레이아웃 개선',
+  '"업데이트 내역" 버튼 추가',
+];
+function openChangelog(){ renderChangelogList(); document.getElementById('changelogOverlay').classList.add('open'); }
+function closeChangelog(){ document.getElementById('changelogOverlay').classList.remove('open'); }
+function renderChangelogList(){
+  const b=document.getElementById('changelogBody');
+  b.innerHTML = CHANGELOG.map((t,i)=>`<div class="changelog-item"><span class="changelog-num">${i+1}</span>${esc(t)}</div>`).join('');
+}
+
 function renderAll(){ renderLegend(); renderCalendar(); }
 
 function goMonth(){ ensureHolidays(viewY); renderLegend(); renderCalendar(); }
@@ -1100,6 +1164,9 @@ document.getElementById('todayBtn').onclick=()=>{ viewY=TODAY.getFullYear(); vie
 document.getElementById('membersBtn').onclick=openMembers;
 document.getElementById('membersClose').onclick=closeMembers;
 document.getElementById('membersOverlay').onclick=(e)=>{ if(e.target.id==='membersOverlay') closeMembers(); };
+document.getElementById('changelogBtn').onclick=openChangelog;
+document.getElementById('changelogClose').onclick=closeChangelog;
+document.getElementById('changelogOverlay').onclick=(e)=>{ if(e.target.id==='changelogOverlay') closeChangelog(); };
 document.getElementById('exportBtn').onclick=exportExcel;
 document.getElementById('quickAdd').onclick=openManage;
 document.getElementById('mgmtClose').onclick=closeManage;
@@ -1109,7 +1176,7 @@ document.getElementById('authClose').onclick=closeAuth;
 document.getElementById('authOverlay').onclick=(e)=>{ if(e.target.id==='authOverlay') closeAuth(); };
 document.getElementById('modalClose').onclick=closeModal;
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeModal(); };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeModal(); closeManage(); closeAuth(); closeMembers(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeModal(); closeManage(); closeAuth(); closeMembers(); closeChangelog(); } });
 
 /* ===== 초기 로딩 ===== */
 async function init(){
