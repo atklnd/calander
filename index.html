@@ -163,6 +163,9 @@
   .tbl input:disabled,.tbl select:disabled{color:var(--ink-3);}
   .tbl-del{border:none;background:transparent;cursor:pointer;color:var(--ink-3);border-radius:7px;padding:6px 7px;font-size:14px;}
   .tbl-del:hover{background:#FCEBEE;color:var(--red);}
+  .tbl-copy{border:1px solid var(--line);background:var(--surface);cursor:pointer;color:var(--ink-2);border-radius:7px;
+    padding:5px 9px;font-size:11.5px;font-family:inherit;white-space:nowrap;}
+  .tbl-copy:hover{border-color:var(--ink-3);color:var(--ink);}
   .mgmt-bar{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 12px;}
   .mgmt-cnt{font-size:13px;color:var(--ink-2);}
 
@@ -944,7 +947,7 @@ async function renderTableMode(){
   document.querySelector('#manageOverlay .modal').classList.add('wide');
   setHeader('Table 형태로 등록·수정', true);
   const body=document.getElementById('mgmtBody');
-  body.innerHTML='<p class="pick-guide">엑셀 다운로드와 같은 형식입니다. 셀을 바로 수정하거나 아래에서 행을 추가할 수 있습니다.</p>';
+  body.innerHTML='<p class="pick-guide">엑셀 다운로드와 같은 형식입니다. 셀을 바로 수정하거나 아래에서 행을 추가할 수 있습니다. 모든 항목이 완전히 같은 행은 같은 색으로 자동 표시됩니다.</p>';
   const filterRow=document.createElement('div'); filterRow.className='legend'; filterRow.style.marginBottom='12px';
   tableFilterRow=filterRow;
   renderTableFilterChips(filterRow);
@@ -962,7 +965,7 @@ async function renderTableMode(){
     <th style="min-width:96px;">담당자</th>
     <th style="width:72px;">인원</th>
     <th style="min-width:160px;">MEMO</th>
-    <th style="width:36px;"></th>
+    <th style="width:88px;"></th>
   </tr></thead><tbody id="tblBody"></tbody></table>`;
   body.appendChild(wrap);
   const addBtn=document.createElement('button');
@@ -970,6 +973,24 @@ async function renderTableMode(){
   addBtn.onclick=addTableRow;
   body.appendChild(addBtn);
   renderTableRows();
+}
+
+const DUPLICATE_PALETTE = ['#FDE68A','#BFDBFE','#FBCFE8','#C7F9CC','#E9D5FF','#FED7AA'];
+function computeDuplicateColors(rows){
+  const groups={};
+  rows.forEach(t=>{
+    const sig = JSON.stringify([t.site,t.title,t.startDate,t.endDate,t.startTime,t.endTime,
+      t.instructor,t.room,t.owner,t.capacity,t.memo,t.attachmentPath]);
+    (groups[sig] ||= []).push(t.id);
+  });
+  const colorOf={}; let idx=0;
+  Object.values(groups).forEach(ids=>{
+    if(ids.length>=2){
+      const c=DUPLICATE_PALETTE[idx % DUPLICATE_PALETTE.length]; idx++;
+      ids.forEach(id=>{ colorOf[id]=c; });
+    }
+  });
+  return colorOf;
 }
 
 function renderTableRows(){
@@ -985,9 +1006,11 @@ function renderTableRows(){
     return;
   }
   const colMap={site:'site',title:'title',startDate:'start_date',endDate:'end_date',startTime:'start_time',endTime:'end_time',instructor:'instructor',room:'room',owner:'owner',capacity:'capacity',memo:'memo'};
+  const dupColors = computeDuplicateColors(rows);
   rows.forEach(t=>{
     const canEdit = currentUser && (currentUser.id===t.createdBy || currentUser.isAdmin);
     const tr=document.createElement('tr'); tr.dataset.id=t.id;
+    if(dupColors[t.id]) tr.style.background = dupColors[t.id];
     const siteOpts=Object.keys(SITES).map(s=>`<option value="${s}" ${s===t.site?'selected':''}>${s}</option>`).join('');
     tr.innerHTML=`
       <td><select data-f="site" ${canEdit?'':'disabled'}>${siteOpts}</select></td>
@@ -1001,7 +1024,8 @@ function renderTableRows(){
       <td><input data-f="owner" value="${esc(t.owner)}" ${canEdit?'':'disabled'}></td>
       <td><input type="number" min="0" class="num" data-f="capacity" value="${t.capacity!=null?t.capacity:''}" placeholder="-" ${canEdit?'':'disabled'}></td>
       <td><input data-f="memo" value="${esc(t.memo||'')}" placeholder="주의사항 등" ${canEdit?'':'disabled'}></td>
-      <td>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</td>`;
+      <td><div style="display:flex;gap:2px;"><button class="tbl-copy" title="복사해서 새로 만들기">복사</button>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</div></td>`;
+    tr.querySelector('.tbl-copy').onclick=()=>duplicateRow(t.id);
     if(canEdit){
       tr.querySelectorAll('[data-f]').forEach(inp=>{
         inp.addEventListener('change', async ()=>{
@@ -1027,6 +1051,26 @@ function renderTableRows(){
       };
     }
     tb.appendChild(tr);
+  });
+}
+
+async function duplicateRow(id){
+  if(!currentUser){ openAuth('login'); return; }
+  const src=trainings.find(x=>x.id===id); if(!src) return;
+  const payload={
+    site:src.site, title:src.title, start_date:src.startDate, end_date:src.endDate,
+    start_time:src.startTime, end_time:src.endTime, instructor:src.instructor, room:src.room, owner:src.owner,
+    capacity:src.capacity, memo:src.memo, attachment_path:src.attachmentPath, attachment_name:src.attachmentName,
+    created_by:currentUser.id,
+  };
+  const {data,error}=await sb.from('trainings').insert(payload).select().single();
+  if(error){ alert('복사 실패: '+error.message); return; }
+  tableFilter[src.site]=true;
+  if(tableFilterRow) renderTableFilterChips(tableFilterRow);
+  await loadTrainings(); renderCalendar(); renderLegend(); renderTableRows();
+  requestAnimationFrame(()=>{
+    const tr=document.querySelector(`#tblBody tr[data-id="${data.id}"]`);
+    if(tr){ tr.scrollIntoView({block:'center'}); const si=tr.querySelector('[data-f="startDate"]'); si&&si.focus(); }
   });
 }
 
