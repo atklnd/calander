@@ -50,6 +50,7 @@
   .user-chip{font-size:13px;color:var(--ink);}
   .btn-ghost{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 14px;font-family:inherit;font-size:14px;cursor:pointer;}
   .btn-ghost:hover{border-color:var(--ink-3);}
+  a.btn-ghost{text-decoration:none;display:inline-flex;align-items:center;white-space:nowrap;}
   .btn-primary{border:none;background:var(--ink);color:#fff;border-radius:10px;padding:10px 15px;font-family:inherit;
     font-weight:500;font-size:14px;cursor:pointer;box-shadow:var(--shadow);}
   .btn-primary:hover{background:#0c1826;}
@@ -78,6 +79,7 @@
   .date.redday{color:var(--red);}
   .date.blueday{color:var(--blue);}
   .holi{font-size:10.5px;font-weight:400;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ww-tag{font-size:9.5px;font-weight:400;color:var(--ink-3);letter-spacing:.02em;margin-top:1px;}
   .daybg.other .holi{opacity:.6;}
 
   .bar{position:relative;z-index:1;align-self:start;margin:1px 3px;height:20px;display:flex;align-items:center;gap:6px;
@@ -228,14 +230,15 @@
 <div class="wrap">
   <header class="app">
     <div class="brand">
-      <h1>L&amp;D 교육 일정표</h1>
+      <h1>📚 L&amp;D 교육 일정표</h1>
       <p>앰코코리아 · 광주(K4)·부평(K3)·송도(K5) 통합 교육 캘린더</p>
     </div>
+    <a class="btn-ghost external-link" href="https://amkor.sharepoint.com/sites/HRGA/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FHRGA%2FShared%20Documents%2F4%2E%E1%84%8B%E1%85%B5%E1%86%AB%E1%84%8C%E1%85%A2%E1%84%80%E1%85%A2%E1%84%87%E1%85%A1%E1%86%AF%2DHRD%2F%E2%98%85%20L%26D%ED%8C%80%20%EC%A7%84%ED%96%89%EC%97%85%EB%AC%B4%20%EA%B4%80%EB%A6%AC%2FL%26D%ED%8C%80%20%EC%A3%BC%EA%B0%84%EC%97%85%EB%AC%B4%EB%B3%B4%EA%B3%A0&sortField=Created&isAscending=false&viewid=239c0a70%2De702%2D410f%2Dbac7%2Df3ed608aec2a" target="_blank" rel="noopener">📁 주간업무보고 폴더 ↗</a>
     <div class="navbar">
       <button id="prev" aria-label="이전 달">◀</button>
       <div class="month num" id="monthLabel">2026년 7월</div>
       <button id="next" aria-label="다음 달">▶</button>
-      <button class="today-btn" id="todayBtn">오늘</button>
+      <button class="today-btn" id="todayBtn">📍 오늘</button>
     </div>
   </header>
 
@@ -243,10 +246,10 @@
     <div class="legend" id="legend"></div>
     <div class="right">
       <div class="auth" id="authArea"></div>
-      <button class="btn-ghost" id="changelogBtn">업데이트 내역</button>
-      <button class="btn-ghost" id="exportBtn">엑셀 다운로드</button>
-      <button class="btn-ghost" id="membersBtn" style="display:none">회원 관리</button>
-      <button class="btn-primary" id="quickAdd">+ 교육 등록</button>
+      <button class="btn-ghost" id="changelogBtn">🆕 업데이트 내역</button>
+      <button class="btn-ghost" id="exportBtn">📥 엑셀 다운로드</button>
+      <button class="btn-ghost" id="membersBtn" style="display:none">👥 회원 관리</button>
+      <button class="btn-primary" id="quickAdd">📅 교육 등록</button>
     </div>
   </div>
 
@@ -272,7 +275,7 @@
   <div class="modal manage">
     <div class="modal-h">
       <button class="back" id="mgmtBack" style="display:none" aria-label="뒤로">←</button>
-      <h3 id="mgmtTitle">사업장 선택</h3>
+      <h3 id="mgmtTitle">🏢 사업장 선택</h3>
       <button class="x" id="mgmtClose" aria-label="닫기">✕</button>
     </div>
     <div class="modal-b" id="mgmtBody"></div>
@@ -292,7 +295,7 @@
 <div class="overlay" id="changelogOverlay">
   <div class="modal" style="max-width:540px;">
     <div class="modal-h">
-      <h3>업데이트 내역</h3>
+      <h3>🆕 업데이트 내역</h3>
       <button class="x" id="changelogClose" aria-label="닫기">✕</button>
     </div>
     <div class="modal-b" id="changelogBody"></div>
@@ -302,7 +305,7 @@
 <div class="overlay" id="membersOverlay">
   <div class="modal manage">
     <div class="modal-h">
-      <h3>회원 관리</h3>
+      <h3>👥 회원 관리</h3>
       <button class="x" id="membersClose" aria-label="닫기">✕</button>
     </div>
     <div class="modal-b" id="membersBody"></div>
@@ -332,7 +335,8 @@ const SITES = {
   '연수원':{name:'', c:'#FFD400', soft:'#FFFAD6', txt:'#000'},
 };
 const styleVars = s => `--c:${SITES[s].c};--soft:${SITES[s].soft};--txt:${SITES[s].txt};`;
-const siteLabel = s => SITES[s].name ? `${s} ${SITES[s].name}` : s;
+const SITE_EMOJI = {K3:'🏭', K4:'🏭', K5:'🏭', '연수원':'🎓'};
+const siteLabel = s => `${SITE_EMOJI[s]||''} ${SITES[s].name ? `${s} ${SITES[s].name}` : s}`;
 
 /* 내장 공휴일 폴백 (API 미연결 시). 배포 시 공공데이터포털 API가 덮어씀 */
 const HOLIDAYS = {
@@ -431,6 +435,13 @@ viewY = TODAY.getFullYear(); viewM = TODAY.getMonth();
 const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const daysBetween = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+function ww1Sunday(y){ const jan1=new Date(y,0,1); return new Date(y,0,1-jan1.getDay()); }
+function getWorkWeek(date){
+  let y=date.getFullYear();
+  if(date>=ww1Sunday(y+1)) y+=1;
+  const diffDays=Math.round((date-ww1Sunday(y))/86400000);
+  return Math.floor(diffDays/7)+1;
+}
 function isBiz(dstr){ const d=new Date(dstr+'T00:00:00'); const dow=d.getDay(); return dow!==0 && dow!==6 && !HOLIDAYS[dstr]; }
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function attachmentUrl(path){ const {data}=sb.storage.from('materials').getPublicUrl(path); return data.publicUrl; }
@@ -517,7 +528,7 @@ function renderWeek(weekStart){
     if(dstr===iso(TODAY)) cls+=' today';
     bg.className=cls; bg.style.gridColumn=(ci+1);
     const dcls=(isSun||isHoli)?' redday':(isSat?' blueday':'');
-    bg.innerHTML=`<div class="cell-top"><span class="date${dcls} num">${d.getDate()}</span>${isHoli?`<span class="holi">${esc(holi)}</span>`:''}</div>`;
+    bg.innerHTML=`<div class="cell-top"><span class="date${dcls} num">${d.getDate()}</span>${isHoli?`<span class="holi">${esc(holi)}</span>`:''}</div>${ci===0?`<div class="ww-tag num">WW${getWorkWeek(d)}</div>`:''}`;
     if(inMonth){ bg.style.cursor='pointer'; bg.onclick=()=>openDay(dstr); }
     week.appendChild(bg);
   });
@@ -568,7 +579,7 @@ function renderWeek(weekStart){
 function openDay(dstr){
   const [y,m,dd]=dstr.split('-');
   const holi=HOLIDAYS[dstr];
-  document.getElementById('modalTitle').innerHTML = `${+y}년 ${+m}월 ${+dd}일` + (holi?`<span class="htag">${esc(holi)}</span>`:'');
+  document.getElementById('modalTitle').innerHTML = `📅 ${+y}년 ${+m}월 ${+dd}일` + (holi?`<span class="htag">${esc(holi)}</span>`:'');
   const body=document.getElementById('modalBody'); body.innerHTML='';
   // 토/일/공휴일에는 교육이 있을 수 없음
   const list = isBiz(dstr)
@@ -590,7 +601,7 @@ function openDay(dstr){
       <div class="mrow-top">
         <span class="mk">${siteLabel(t.site)}</span>
         <span class="mt" title="${esc(t.title)}">${esc(t.title)}</span>
-        ${isOwner?`<button class="act edit">수정</button>`:''}
+        ${isOwner?`<button class="act edit">✏️ 수정</button>`:''}
       </div>
       <div class="md2">
         <b class="num">${t.startTime}–${t.endTime}</b>${spanTag} · <b>${esc(t.room||'-')}</b>${rangeTag} · 강사 <b>${esc(t.instructor||'-')}</b> · 담당 <b>${esc(t.owner||'-')}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b> · 등록 <b>${esc(t.createdByName||'-')}</b>${memoExcerpt?` · <span class="memo-inline" title="${esc(t.memo)}">📝 ${esc(memoExcerpt)}</span>`:''}${t.attachmentPath?` · <a class="attach-inline" href="${attachmentUrl(t.attachmentPath)}" target="_blank" rel="noopener" download>📎 ${esc(t.attachmentName||'첨부파일')}</a>`:''}
@@ -641,13 +652,13 @@ function renderAuthArea(){
   const a=document.getElementById('authArea');
   document.getElementById('membersBtn').style.display = (currentUser && currentUser.isAdmin) ? '' : 'none';
   if(currentUser){
-    a.innerHTML=`<span class="user-chip">👤 ${esc(currentUser.name)}</span><button class="btn-ghost" id="logoutBtn">로그아웃</button>`;
+    a.innerHTML=`<span class="user-chip">👤 ${esc(currentUser.name)}</span><button class="btn-ghost" id="logoutBtn">🚪 로그아웃</button>`;
     document.getElementById('logoutBtn').onclick=async ()=>{
       await sb.auth.signOut(); currentUser=null; renderAuthArea();
       if(document.getElementById('overlay').classList.contains('open')) closeModal();
     };
   } else {
-    a.innerHTML=`<button class="btn-ghost" id="loginBtn">로그인</button>`;
+    a.innerHTML=`<button class="btn-ghost" id="loginBtn">🔐 로그인</button>`;
     document.getElementById('loginBtn').onclick=()=>openAuth('login');
   }
 }
@@ -665,7 +676,7 @@ function renderAuthForm(){
       <div class="field"><label>이메일</label><input id="aEmail" type="email" placeholder="name@amkor.com" autocomplete="off"></div>
       <div class="field"><label>비밀번호</label><input id="aPw" type="password" placeholder="비밀번호 (6자 이상)"></div>
       <div id="aErr" class="auth-err"></div>
-      <button class="btn-save" id="aSubmit" style="width:100%;">${signup?'가입하고 로그인':'로그인'}</button>
+      <button class="btn-save" id="aSubmit" style="width:100%;">${signup?'✨ 가입하고 로그인':'🔐 로그인'}</button>
       <p class="auth-switch">${signup?'이미 계정이 있나요? <a id="aToLogin">로그인</a>':'계정이 없나요? <a id="aToSignup">회원가입</a>'}</p>
     </div>`;
   const el=q=>document.getElementById(q);
@@ -676,14 +687,14 @@ function renderAuthForm(){
   el('aSubmit').onclick=async ()=>{
     const email=el('aEmail').value.trim().toLowerCase(), pw=el('aPw').value;
     if(!email||!pw){ err('이메일과 비밀번호를 입력하세요.'); return; }
-    const btn=el('aSubmit'); btn.disabled=true; btn.textContent='처리 중…';
+    const btn=el('aSubmit'); btn.disabled=true; btn.textContent='⏳ 처리 중…';
     try{
       if(signup){
         const name=el('aName').value.trim();
-        if(!name){ err('이름을 입력하세요.'); btn.disabled=false; btn.textContent='가입하고 로그인'; return; }
+        if(!name){ err('이름을 입력하세요.'); btn.disabled=false; btn.textContent='✨ 가입하고 로그인'; return; }
         const {data,error} = await sb.auth.signUp({ email, password: pw, options:{ data:{ name } } });
         if(error) throw error;
-        if(!data.session){ err('가입되었습니다. 이메일 인증이 필요할 수 있어요 — 관리자에게 문의해주세요.'); btn.disabled=false; btn.textContent='가입하고 로그인'; return; }
+        if(!data.session){ err('가입되었습니다. 이메일 인증이 필요할 수 있어요 — 관리자에게 문의해주세요.'); btn.disabled=false; btn.textContent='✨ 가입하고 로그인'; return; }
       } else {
         const {error} = await sb.auth.signInWithPassword({ email, password: pw });
         if(error) throw error;
@@ -693,7 +704,7 @@ function renderAuthForm(){
       await loadTrainings(); renderCalendar(); renderLegend();
     }catch(e){
       err(e.message==='Invalid login credentials' ? '이메일 또는 비밀번호가 올바르지 않습니다.' : (e.message||'오류가 발생했습니다.'));
-      btn.disabled=false; btn.textContent=signup?'가입하고 로그인':'로그인';
+      btn.disabled=false; btn.textContent=signup?'✨ 가입하고 로그인':'🔐 로그인';
     }
   };
 }
@@ -719,7 +730,7 @@ function setHeader(html, showBack){
 function renderSitePicker(){
   manageSite=null; mgmtView='picker';
   document.querySelector('#manageOverlay .modal').classList.remove('wide');
-  setHeader('사업장 선택', false);
+  setHeader('🏢 사업장 선택', false);
   const body=document.getElementById('mgmtBody');
   body.innerHTML='<p class="pick-guide">교육을 등록·관리할 사업장을 선택하세요.</p>';
   const cards=document.createElement('div'); cards.className='site-cards';
@@ -727,14 +738,14 @@ function renderSitePicker(){
     const cnt=trainings.filter(t=>t.site===s).length;
     const b=document.createElement('button');
     b.className='site-card '+s.toLowerCase(); b.style.cssText=styleVars(s);
-    b.innerHTML=`<span class="sc-code">${s}</span>${SITES[s].name?`<span class="sc-name">${SITES[s].name}</span>`:''}<span class="sc-cnt">${cnt}개 과정</span>`;
+    b.innerHTML=`<span class="sc-code">${SITE_EMOJI[s]||''} ${s}</span>${SITES[s].name?`<span class="sc-name">${SITES[s].name}</span>`:''}<span class="sc-cnt">${cnt}개 과정</span>`;
     b.onclick=()=>{ manageSite=s; renderCourseList(); };
     cards.appendChild(b);
   });
   body.appendChild(cards);
   const modeBtn=document.createElement('button');
   modeBtn.className='mode-switch';
-  modeBtn.textContent='또는 Table 형태로 한 번에 등록·수정하기 →';
+  modeBtn.textContent='📊 또는 Table 형태로 한 번에 등록·수정하기 →';
   modeBtn.onclick=renderTableMode;
   body.appendChild(document.createElement('br'));
   body.appendChild(modeBtn);
@@ -743,12 +754,12 @@ function renderSitePicker(){
 function renderCourseList(){
   mgmtView='list'; const s=manageSite;
   document.querySelector('#manageOverlay .modal').classList.remove('wide');
-  setHeader(`<span class="ttag" style="${styleVars(s)}">${s}</span> ${siteLabel(s)} · 교육 관리`, true);
+  setHeader(`<span class="ttag" style="${styleVars(s)}">${s}</span> ${siteLabel(s)} · 📚 교육 관리`, true);
   const rows=trainings.filter(t=>t.site===s).slice()
     .sort((a,b)=>a.startDate.localeCompare(b.startDate)||a.startTime.localeCompare(b.startTime));
   const body=document.getElementById('mgmtBody');
   const bar=`<div class="mgmt-bar"><span class="mgmt-cnt">${rows.length}개 과정</span>
-    <button class="btn-add" id="mgmtAdd">+ 교육 추가</button></div>`;
+    <button class="btn-add" id="mgmtAdd">➕ 교육 추가</button></div>`;
   if(!rows.length){
     body.innerHTML=bar+'<p class="empty" style="border:1px dashed var(--line);border-radius:12px;margin:0;">등록된 교육이 없습니다. <b>+ 교육 추가</b>로 등록하세요.</p>';
     document.getElementById('mgmtAdd').onclick=()=>renderCourseForm(null);
@@ -799,7 +810,7 @@ function renderCourseForm(rid){
     document.getElementById('mgmtBody').innerHTML='<p class="empty">이 교육은 등록자만 수정할 수 있습니다.</p>';
     return;
   }
-  setHeader(`<span class="ttag" style="${styleVars(s)}">${s}</span> ${editing?'교육 수정':'교육 추가'}`, true);
+  setHeader(`<span class="ttag" style="${styleVars(s)}">${s}</span> ${editing?'✏️ 교육 수정':'➕ 교육 추가'}`, true);
   const body=document.getElementById('mgmtBody');
   body.innerHTML=`
     <div class="form">
@@ -825,10 +836,10 @@ function renderCourseForm(rid){
       </div>
       <div id="fErr" class="auth-err"></div>
       <div class="form-foot">
-        ${editing?'<button class="btn-del-text" id="fDel">이 교육 삭제</button>':'<span></span>'}
+        ${editing?'<button class="btn-del-text" id="fDel">🗑️ 이 교육 삭제</button>':'<span></span>'}
         <div style="display:flex;gap:8px;">
-          <button class="btn-cancel" id="fCancel">취소</button>
-          <button class="btn-save" id="fSave">저장</button>
+          <button class="btn-cancel" id="fCancel">✖️ 취소</button>
+          <button class="btn-save" id="fSave">💾 저장</button>
         </div>
       </div>
     </div>`;
@@ -855,7 +866,7 @@ function renderCourseForm(rid){
     const payload={ site:s, title, start_date:sd, end_date:ed, start_time:el('fSt').value, end_time:el('fEt').value,
       instructor:el('fIns').value.trim(), room:el('fRoom').value.trim(), owner:el('fOwn').value.trim(), capacity,
       memo: el('fMemo').value.trim() };
-    const btn=el('fSave'); btn.disabled=true; btn.textContent='저장 중…';
+    const btn=el('fSave'); btn.disabled=true; btn.textContent='⏳ 저장 중…';
     try{
       const newFile = el('fAttachFile').files[0];
       if(newFile && newFile.size > 50*1024*1024){ fErr.textContent='파일이 50MB를 초과합니다.'; btn.disabled=false; btn.textContent='저장'; return; }
@@ -914,7 +925,7 @@ async function renderMembers(){
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);white-space:nowrap;padding-bottom:10px;">
             <input class="mAdmin" type="checkbox" ${u.is_admin?'checked':''}> 관리자
           </label>
-          <button class="btn-save mSave" style="padding:9px 14px;">저장</button>
+          <button class="btn-save mSave" style="padding:9px 14px;">💾 저장</button>
         </div>
         <div class="mErr auth-err"></div>
       </div>`;
@@ -924,7 +935,7 @@ async function renderMembers(){
       const adm=row.querySelector('.mAdmin').checked;
       const errEl=row.querySelector('.mErr'); errEl.textContent='';
       if(!nm){ errEl.textContent='이름을 입력하세요.'; return; }
-      saveBtn.disabled=true; saveBtn.textContent='저장 중…';
+      saveBtn.disabled=true; saveBtn.textContent='⏳ 저장 중…';
       const {error:uerr} = await sb.from('profiles').update({name:nm, is_admin:adm}).eq('id', u.id);
       saveBtn.disabled=false; saveBtn.textContent='저장';
       if(uerr){ errEl.textContent=uerr.message; return; }
@@ -977,7 +988,7 @@ async function renderTableMode(){
   mgmtView='table';
   Object.keys(SITES).forEach(s=>{ tableFilter[s]=true; });
   document.querySelector('#manageOverlay .modal').classList.add('wide');
-  setHeader('Table 형태로 등록·수정', true);
+  setHeader('📊 Table 형태로 등록·수정', true);
   const body=document.getElementById('mgmtBody');
   body.innerHTML='<p class="pick-guide">엑셀 다운로드와 같은 형식입니다. 셀을 바로 수정하거나 아래에서 행을 추가할 수 있습니다. 모든 항목이 완전히 같은 행은 같은 색으로 자동 표시됩니다.</p>';
   const filterRow=document.createElement('div'); filterRow.className='legend'; filterRow.style.marginBottom='12px';
@@ -1001,7 +1012,7 @@ async function renderTableMode(){
   </tr></thead><tbody id="tblBody"></tbody></table>`;
   body.appendChild(wrap);
   const addBtn=document.createElement('button');
-  addBtn.className='btn-add'; addBtn.style.marginTop='10px'; addBtn.textContent='+ 행 추가';
+  addBtn.className='btn-add'; addBtn.style.marginTop='10px'; addBtn.textContent='➕ 행 추가';
   addBtn.onclick=addTableRow;
   body.appendChild(addBtn);
   renderTableRows();
@@ -1056,7 +1067,7 @@ function renderTableRows(){
       <td><input data-f="owner" value="${esc(t.owner)}" ${canEdit?'':'disabled'}></td>
       <td><input type="number" min="0" class="num" data-f="capacity" value="${t.capacity!=null?t.capacity:''}" placeholder="-" ${canEdit?'':'disabled'}></td>
       <td><input data-f="memo" value="${esc(t.memo||'')}" placeholder="주의사항 등" ${canEdit?'':'disabled'}></td>
-      <td><div style="display:flex;gap:2px;"><button class="tbl-copy" title="복사해서 새로 만들기">복사</button>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</div></td>`;
+      <td><div style="display:flex;gap:2px;"><button class="tbl-copy" title="복사해서 새로 만들기">📋 복사</button>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</div></td>`;
     tr.querySelector('.tbl-copy').onclick=()=>duplicateRow(t.id);
     if(canEdit){
       tr.querySelectorAll('[data-f]').forEach(inp=>{
@@ -1147,6 +1158,7 @@ const CHANGELOG = [
   '여러 날짜에 걸친 막대 클릭 시, 실제 클릭한 날짜 기준으로 정확한 상세 팝업이 뜨도록 수정',
   '날짜 상세 팝업을 가로로 넓히고 항목당 높이를 줄여, 한 화면에 더 많은 과정이 보이도록 레이아웃 개선',
   '"업데이트 내역" 버튼 추가',
+  '상단 헤더에 "주간업무보고 폴더" 바로가기 링크 추가',
 ];
 function openChangelog(){ renderChangelogList(); document.getElementById('changelogOverlay').classList.add('open'); }
 function closeChangelog(){ document.getElementById('changelogOverlay').classList.remove('open'); }
