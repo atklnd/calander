@@ -105,6 +105,9 @@
   .modal.daylist{max-width:820px;}
   #modalBody{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;align-content:start;max-height:72vh;}
   #modalBody .empty{grid-column:1/-1;}
+  .day-group-head{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:8px 2px 0;padding-top:10px;border-top:1px solid var(--line-2);}
+  .day-group-head:first-child{margin-top:0;padding-top:0;border-top:none;}
+  .day-group-head .cnt2{font-size:11.5px;color:var(--ink-3);}
   .modal.auth-modal{max-width:400px;}
   .modal-h{padding:18px 20px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;}
   .modal-h h3{margin:0;font-size:17px;font-weight:500;}
@@ -233,7 +236,7 @@
       <h1>📚 L&amp;D 교육 일정표</h1>
       <p>앰코코리아 · 광주(K4)·부평(K3)·송도(K5) 통합 교육 캘린더</p>
     </div>
-    <a class="btn-ghost external-link" href="https://amkor.sharepoint.com/sites/HRGA/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FHRGA%2FShared%20Documents%2F4%2E%E1%84%8B%E1%85%B5%E1%86%AB%E1%84%8C%E1%85%A2%E1%84%80%E1%85%A2%E1%84%87%E1%85%A1%E1%86%AF%2DHRD%2F%E2%98%85%20L%26D%ED%8C%80%20%EC%A7%84%ED%96%89%EC%97%85%EB%AC%B4%20%EA%B4%80%EB%A6%AC%2FL%26D%ED%8C%80%20%EC%A3%BC%EA%B0%84%EC%97%85%EB%AC%B4%EB%B3%B4%EA%B3%A0&sortField=Created&isAscending=false&viewid=239c0a70%2De702%2D410f%2Dbac7%2Df3ed608aec2a" target="_blank" rel="noopener">📁 주간업무보고 폴더 ↗</a>
+    <a class="btn-ghost external-link" href="https://amkor.sharepoint.com/sites/HRGA/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FHRGA%2FShared%20Documents%2F4%2E%E1%84%8B%E1%85%B5%E1%86%AB%E1%84%8C%E1%85%A2%E1%84%80%E1%85%A2%E1%84%87%E1%85%A1%E1%86%AF%2DHRD%2F00%2E%20L%26D%ED%8C%80%20%EC%A7%84%ED%96%89%EC%97%85%EB%AC%B4%20%EA%B4%80%EB%A6%AC%2FL%26D%ED%8C%80%20%EC%A3%BC%EA%B0%84%EC%97%85%EB%AC%B4%EB%B3%B4%EA%B3%A0%2F2026&viewid=239c0a70%2De702%2D410f%2Dbac7%2Df3ed608aec2a&csf=1&ovuser=423f5ac8%2Dab26%2D4dfa%2D9ebf%2D59d3def9fbd0%2CHyuk%2EJeong%40amkor%2Eco%2Ekr&TeamsCID=8777e53f%2D31db%2D4631%2Dbac1%2D740401210be0&OR=Teams%2DHL&CT=1785386341321&clickparams=eyJBcHBOYW1lIjoiVGVhbXMtRGVza3RvcCIsIkFwcFZlcnNpb24iOiI0OS8yNjA3MDIxNTcxMSIsIkhhc0ZlZGVyYXRlZFVzZXIiOmZhbHNlfQ%3D%3D&CID=e6372ca2%2Dc0d6%2D1000%2D06e1%2D71bd3604dc83&cidOR=SPO&FolderCTID=0x012000D22450CD42520248AB386490C1F941D5" target="_blank" rel="noopener">📁 주간업무보고 폴더 ↗</a>
     <div class="navbar">
       <button id="prev" aria-label="이전 달">◀</button>
       <div class="month num" id="monthLabel">2026년 7월</div>
@@ -590,24 +593,32 @@ function openDay(dstr){
       ? '<div class="empty">이 날짜에 등록된 교육이 없습니다.</div>'
       : '<div class="empty">주말·공휴일에는 교육이 진행되지 않습니다.</div>';
   }
-  list.forEach(t=>{
-    const total=daysBetween(t.startDate,t.endDate)+1, idx=daysBetween(t.startDate,dstr)+1;
-    const spanTag = total>1 ? ` · <b class="num">${idx}/${total}일차</b>` : '';
-    const rangeTag = total>1 ? ` · 기간 <b class="num">${t.startDate}~${t.endDate}</b>` : '';
-    const isOwner = currentUser && (currentUser.id===t.createdBy || currentUser.isAdmin);
-    const memoExcerpt = t.memo ? (t.memo.length>36 ? t.memo.slice(0,36)+'…' : t.memo) : '';
-    const div=document.createElement('div'); div.className='mrow'; div.style.cssText=styleVars(t.site);
-    div.innerHTML=`
-      <div class="mrow-top">
-        <span class="mk">${siteLabel(t.site)}</span>
-        <span class="mt" title="${esc(t.title)}">${esc(t.title)}</span>
-        ${isOwner?`<button class="act edit">✏️ 수정</button>`:''}
-      </div>
-      <div class="md2">
-        <b class="num">${t.startTime}–${t.endTime}</b>${spanTag} · <b>${esc(t.room||'-')}</b>${rangeTag} · 강사 <b>${esc(t.instructor||'-')}</b> · 담당 <b>${esc(t.owner||'-')}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b> · 등록 <b>${esc(t.createdByName||'-')}</b>${memoExcerpt?` · <span class="memo-inline" title="${esc(t.memo)}">📝 ${esc(memoExcerpt)}</span>`:''}${t.attachmentPath?` · <a class="attach-inline" href="${attachmentUrl(t.attachmentPath)}" target="_blank" rel="noopener" download>📎 ${esc(t.attachmentName||'첨부파일')}</a>`:''}
-      </div>`;
-    const eb=div.querySelector('.edit'); if(eb) eb.onclick=()=>{ closeModal(); openEditCourse(t.id); };
-    body.appendChild(div);
+  // 사업장별로 구역을 나눠서 표시 (구역 안에서는 계속 시작시간 순)
+  const bySite={};
+  list.forEach(t=>{ (bySite[t.site] ||= []).push(t); });
+  Object.keys(SITES).forEach(s=>{
+    const arr=bySite[s]; if(!arr || !arr.length) return;
+    const head=document.createElement('div'); head.className='day-group-head';
+    head.innerHTML=`<span class="mk" style="${styleVars(s)}">${siteLabel(s)}</span><span class="cnt2">${arr.length}건</span>`;
+    body.appendChild(head);
+    arr.forEach(t=>{
+      const total=daysBetween(t.startDate,t.endDate)+1, idx=daysBetween(t.startDate,dstr)+1;
+      const spanTag = total>1 ? ` · <b class="num">${idx}/${total}일차</b>` : '';
+      const rangeTag = total>1 ? ` · 기간 <b class="num">${t.startDate}~${t.endDate}</b>` : '';
+      const isOwner = currentUser && (currentUser.id===t.createdBy || currentUser.isAdmin);
+      const memoExcerpt = t.memo ? (t.memo.length>36 ? t.memo.slice(0,36)+'…' : t.memo) : '';
+      const div=document.createElement('div'); div.className='mrow'; div.style.cssText=styleVars(t.site);
+      div.innerHTML=`
+        <div class="mrow-top">
+          <span class="mt" title="${esc(t.title)}">${esc(t.title)}</span>
+          ${isOwner?`<button class="act edit">✏️ 수정</button>`:''}
+        </div>
+        <div class="md2">
+          <b class="num">${t.startTime}–${t.endTime}</b>${spanTag} · <b>${esc(t.room||'-')}</b>${rangeTag} · 강사 <b>${esc(t.instructor||'-')}</b> · 담당 <b>${esc(t.owner||'-')}</b> · 인원 <b class="num">${t.capacity!=null?t.capacity+'명':'미정'}</b> · 등록 <b>${esc(t.createdByName||'-')}</b>${memoExcerpt?` · <span class="memo-inline" title="${esc(t.memo)}">📝 ${esc(memoExcerpt)}</span>`:''}${t.attachmentPath?` · <a class="attach-inline" href="${attachmentUrl(t.attachmentPath)}" target="_blank" rel="noopener" download>📎 ${esc(t.attachmentName||'첨부파일')}</a>`:''}
+        </div>`;
+      const eb=div.querySelector('.edit'); if(eb) eb.onclick=()=>{ closeModal(); openEditCourse(t.id); };
+      body.appendChild(div);
+    });
   });
   document.getElementById('overlay').classList.add('open');
 }
