@@ -196,6 +196,8 @@
   .course-item .ci-meta{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5;}
   .course-item .ci-del{border:none;background:transparent;cursor:pointer;color:var(--ink-3);border-radius:7px;padding:5px 7px;font-size:14px;flex:none;}
   .course-item .ci-del:hover{background:#FCEBEE;color:var(--red);}
+  .course-item .ci-copy{border:none;background:transparent;cursor:pointer;color:var(--ink-3);border-radius:7px;padding:5px 7px;font-size:14px;flex:none;}
+  .course-item .ci-copy:hover{background:var(--line-2);color:var(--ink);}
 
   .form{display:flex;flex-direction:column;gap:14px;max-width:620px;}
   .field{display:flex;flex-direction:column;gap:6px;}
@@ -787,8 +789,12 @@ function renderCourseList(){
         <div class="ci-title">${esc(t.title||'(제목 없음)')}</div>
         <div class="ci-meta"><span class="num">${dateStr}</span> · <span class="num">${t.startTime}–${t.endTime}</span> · ${esc(t.room||'-')} · 강사 ${esc(t.instructor||'-')} · 인원 ${t.capacity!=null?t.capacity+'명':'미정'}${t.memo?' · 📝 메모':''}${t.attachmentPath?' · 📎 첨부':''}</div>
       </div>
-      ${canEdit?`<button class="ci-del" title="삭제">🗑</button>`:''}`;
-    item.onclick=(e)=>{ if(e.target.closest('.ci-del')) return; renderCourseForm(t.id); };
+      <div style="display:flex;gap:2px;flex:none;">
+        <button class="ci-copy" title="복사해서 날짜만 바꿔 새로 만들기">📋</button>
+        ${canEdit?`<button class="ci-del" title="삭제">🗑</button>`:''}
+      </div>`;
+    item.onclick=(e)=>{ if(e.target.closest('.ci-del')||e.target.closest('.ci-copy')) return; renderCourseForm(t.id); };
+    item.querySelector('.ci-copy').onclick=(e)=>{ e.stopPropagation(); duplicateRow(t.id,'list'); };
     const delBtn=item.querySelector('.ci-del');
     if(delBtn) delBtn.onclick=async (e)=>{
       e.stopPropagation();
@@ -1079,7 +1085,7 @@ function renderTableRows(){
       <td><input type="number" min="0" class="num" data-f="capacity" value="${t.capacity!=null?t.capacity:''}" placeholder="-" ${canEdit?'':'disabled'}></td>
       <td><input data-f="memo" value="${esc(t.memo||'')}" placeholder="주의사항 등" ${canEdit?'':'disabled'}></td>
       <td><div style="display:flex;gap:2px;"><button class="tbl-copy" title="복사해서 새로 만들기">📋 복사</button>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</div></td>`;
-    tr.querySelector('.tbl-copy').onclick=()=>duplicateRow(t.id);
+    tr.querySelector('.tbl-copy').onclick=()=>duplicateRow(t.id,'table');
     if(canEdit){
       tr.querySelectorAll('[data-f]').forEach(inp=>{
         inp.addEventListener('change', async ()=>{
@@ -1108,7 +1114,7 @@ function renderTableRows(){
   });
 }
 
-async function duplicateRow(id){
+async function duplicateRow(id, from){
   if(!currentUser){ openAuth('login'); return; }
   const src=trainings.find(x=>x.id===id); if(!src) return;
   const payload={
@@ -1119,13 +1125,20 @@ async function duplicateRow(id){
   };
   const {data,error}=await sb.from('trainings').insert(payload).select().single();
   if(error){ alert('복사 실패: '+error.message); return; }
-  tableFilter[src.site]=true;
-  if(tableFilterRow) renderTableFilterChips(tableFilterRow);
-  await loadTrainings(); renderCalendar(); renderLegend(); renderTableRows();
-  requestAnimationFrame(()=>{
-    const tr=document.querySelector(`#tblBody tr[data-id="${data.id}"]`);
-    if(tr){ tr.scrollIntoView({block:'center'}); const si=tr.querySelector('[data-f="startDate"]'); si&&si.focus(); }
-  });
+  await loadTrainings(); renderCalendar(); renderLegend();
+  if(from==='list'){
+    // 목록 화면에서 복사한 경우: 복사본을 바로 수정 화면으로 열어서 날짜만 고칠 수 있게 한다
+    manageSite = src.site;
+    renderCourseForm(data.id);
+  } else {
+    tableFilter[src.site]=true;
+    if(tableFilterRow) renderTableFilterChips(tableFilterRow);
+    renderTableRows();
+    requestAnimationFrame(()=>{
+      const tr=document.querySelector(`#tblBody tr[data-id="${data.id}"]`);
+      if(tr){ tr.scrollIntoView({block:'center'}); const si=tr.querySelector('[data-f="startDate"]'); si&&si.focus(); }
+    });
+  }
 }
 
 async function addTableRow(){
@@ -1170,6 +1183,7 @@ const CHANGELOG = [
   '날짜 상세 팝업을 가로로 넓히고 항목당 높이를 줄여, 한 화면에 더 많은 과정이 보이도록 레이아웃 개선',
   '"업데이트 내역" 버튼 추가',
   '상단 헤더에 "주간업무보고 폴더" 바로가기 링크 추가',
+  '일요일 칸에 Work Week(WWnn) 표시, 날짜 상세 팝업을 사업장별로 구역을 나눠 표시, 사업장별 교육 목록에도 복사 기능 추가',
 ];
 function openChangelog(){ renderChangelogList(); document.getElementById('changelogOverlay').classList.add('open'); }
 function closeChangelog(){ document.getElementById('changelogOverlay').classList.remove('open'); }
