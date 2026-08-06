@@ -206,6 +206,9 @@
   .field textarea{border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:14px;
     color:var(--ink);background:var(--surface);width:100%;resize:vertical;min-height:70px;line-height:1.5;}
   .field textarea:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(22,32,46,.06);}
+  .field select{border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:14px;
+    color:var(--ink);background:var(--surface);width:100%;}
+  .field select:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(22,32,46,.06);}
   .field input.num{font-variant-numeric:tabular-nums;}
   .field input:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(22,32,46,.06);}
   .field-row{display:flex;gap:12px;}
@@ -831,6 +834,8 @@ function renderCourseForm(rid){
   const body=document.getElementById('mgmtBody');
   body.innerHTML=`
     <div class="form">
+      <div class="field"><label>사업장</label>
+        <select id="fSite">${Object.keys(SITES).map(k=>`<option value="${k}" ${k===(editing?t.site:s)?'selected':''}>${SITE_EMOJI[k]||''} ${k}${SITES[k].name?' '+SITES[k].name:''}</option>`).join('')}</select></div>
       <div class="field"><label>교육명</label>
         <input id="fTitle" type="text" value="${esc(t.title)}" placeholder="예: 신입사원 OJT 1기" autocomplete="off"></div>
       <div class="field-row">
@@ -880,7 +885,8 @@ function renderCourseForm(rid){
     let sd=el('fSd').value, ed=el('fEd').value; if(ed<sd) ed=sd;
     const capRaw=el('fCap').value.trim();
     const capacity = capRaw===''? null : Math.max(0, parseInt(capRaw,10)||0);
-    const payload={ site:s, title, start_date:sd, end_date:ed, start_time:el('fSt').value, end_time:el('fEt').value,
+    const selSite = el('fSite').value;
+    const payload={ site:selSite, title, start_date:sd, end_date:ed, start_time:el('fSt').value, end_time:el('fEt').value,
       instructor:el('fIns').value.trim(), room:el('fRoom').value.trim(), owner:el('fOwn').value.trim(), capacity,
       memo: el('fMemo').value.trim() };
     const btn=el('fSave'); btn.disabled=true; btn.textContent='⏳ 저장 중…';
@@ -1184,6 +1190,7 @@ const CHANGELOG = [
   '"업데이트 내역" 버튼 추가',
   '상단 헤더에 "주간업무보고 폴더" 바로가기 링크 추가',
   '일요일 칸에 Work Week(WWnn) 표시, 날짜 상세 팝업을 사업장별로 구역을 나눠 표시, 사업장별 교육 목록에도 복사 기능 추가',
+  '등록/수정 폼에 사업장 선택 항목 추가 — 복사하거나 수정할 때 사업장을 변경할 수 있도록 개선',
 ];
 function openChangelog(){ renderChangelogList(); document.getElementById('changelogOverlay').classList.add('open'); }
 function closeChangelog(){ document.getElementById('changelogOverlay').classList.remove('open'); }
