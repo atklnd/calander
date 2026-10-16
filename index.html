@@ -255,6 +255,7 @@
     <div class="right">
       <div class="auth" id="authArea"></div>
       <button class="btn-ghost" id="changelogBtn">🆕 업데이트 내역</button>
+      <button class="btn-ghost" id="mailBtn">📧 오늘 일정 메일</button>
       <button class="btn-ghost" id="exportBtn">📥 엑셀 다운로드</button>
       <button class="btn-ghost" id="membersBtn" style="display:none">👥 회원 관리</button>
       <button class="btn-primary" id="quickAdd">📅 교육 등록</button>
@@ -297,6 +298,24 @@
       <button class="x" id="authClose" aria-label="닫기">✕</button>
     </div>
     <div class="modal-b" id="authBody"></div>
+  </div>
+</div>
+
+<div class="overlay" id="mailOverlay">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-h">
+      <h3>📧 교육 일정 메일 초안</h3>
+      <button class="x" id="mailClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-b">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <label style="font-size:14px;">발송 기준일 <input type="date" id="mailDate" style="font-family:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;"></label>
+        <button class="btn-ghost" id="mailCopy">📋 표 복사하기</button>
+        <button class="btn-primary" id="mailOutlook">✉️ Outlook 새 메일 열기</button>
+      </div>
+      <div style="font-size:12.5px;color:#667;margin-bottom:10px;line-height:1.6;">① 표 복사하기 → ② Outlook 새 메일 열기 → ③ 본문에 붙여넣기(Ctrl+V). 받는 사람은 TLND@amkor.co.kr 로 자동 입력됩니다.</div>
+      <div id="mailPreview" style="border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff;"></div>
+    </div>
   </div>
 </div>
 
@@ -1192,6 +1211,7 @@ const CHANGELOG = [
   '일요일 칸에 Work Week(WWnn) 표시, 날짜 상세 팝업을 사업장별로 구역을 나눠 표시, 사업장별 교육 목록에도 복사 기능 추가',
   '등록/수정 폼에 사업장 선택 항목 추가 — 복사하거나 수정할 때 사업장을 변경할 수 있도록 개선',
   '잘못 입력된 공휴일 정정 (2026-09-28 은 대체공휴일이 아님) 및 2027년 공휴일 전체 검증',
+  '"오늘 일정 메일" 버튼 추가 — 사업장별 교육 일정 표를 복사해 Outlook 새 메일(받는 사람 TLND)에 바로 붙여넣기',
 ];
 function openChangelog(){ renderChangelogList(); document.getElementById('changelogOverlay').classList.add('open'); }
 function closeChangelog(){ document.getElementById('changelogOverlay').classList.remove('open'); }
@@ -1199,6 +1219,49 @@ function renderChangelogList(){
   const b=document.getElementById('changelogBody');
   b.innerHTML = CHANGELOG.map((t,i)=>`<div class="changelog-item"><span class="changelog-num">${i+1}</span>${esc(t)}</div>`).join('');
 }
+
+/* ===== 일정 메일 초안 ===== */
+const MAIL_TO='TLND@amkor.co.kr';
+function buildMailHtml(dstr){
+  const [y,m,d]=dstr.split('-'); const dow='일월화수목금토'[new Date(dstr+'T00:00:00').getDay()];
+  const th='style="border:1px solid #bbb;background:#f0f2f5;padding:6px 10px;text-align:left;font-size:13px;"';
+  const td='style="border:1px solid #ccc;padding:6px 10px;font-size:13px;"';
+  let h=`<div style="font-family:'Malgun Gothic',sans-serif;font-size:14px;"><p>안녕하세요, L&amp;D팀입니다.<br>${+m}월 ${+d}일(${dow}) 사업장별 교육 일정을 안내드립니다.</p>`;
+  if(!isBiz(dstr)) return h+'<p>주말·공휴일로 예정된 교육이 없습니다.</p></div>';
+  ['K3','K4','K5','연수원'].forEach(site=>{
+    const list=trainings.filter(t=>t.site===site&&t.startDate<=dstr&&dstr<=t.endDate).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+    h+=`<h3 style="margin:16px 0 6px;font-size:15px;">${siteLabel(site)}</h3>`;
+    if(!list.length){ h+='<p style="margin:0;color:#777;">해당 없음</p>'; return; }
+    h+=`<table style="border-collapse:collapse;"><tr><th ${th}>교육명</th><th ${th}>시간</th><th ${th}>강의실</th><th ${th}>강사</th><th ${th}>담당자</th></tr>`;
+    list.forEach(t=>{ h+=`<tr><td ${td}>${esc(t.title)}</td><td ${td}>${esc((t.startTime||'').slice(0,5))}~${esc((t.endTime||'').slice(0,5))}</td><td ${td}>${esc(t.room)}</td><td ${td}>${esc(t.instructor)}</td><td ${td}>${esc(t.owner)}</td></tr>`; });
+    h+='</table>';
+  });
+  return h+'</div>';
+}
+function renderMailPreview(){ document.getElementById('mailPreview').innerHTML=buildMailHtml(document.getElementById('mailDate').value); }
+function openMail(){ document.getElementById('mailDate').value=iso(TODAY); renderMailPreview(); document.getElementById('mailOverlay').classList.add('open'); }
+function closeMail(){ document.getElementById('mailOverlay').classList.remove('open'); }
+async function copyMailTable(){
+  const html=buildMailHtml(document.getElementById('mailDate').value);
+  try{
+    await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([document.getElementById('mailPreview').innerText],{type:'text/plain'})})]);
+    alert('표가 복사되었습니다. Outlook 본문에 붙여넣기(Ctrl+V) 하세요.');
+  }catch(e){
+    const r=document.createRange(); r.selectNodeContents(document.getElementById('mailPreview'));
+    const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand('copy'); sel.removeAllRanges();
+    alert('표가 복사되었습니다. Outlook 본문에 붙여넣기(Ctrl+V) 하세요.');
+  }
+}
+function openOutlookDraft(){
+  const dstr=document.getElementById('mailDate').value;
+  location.href=`mailto:${MAIL_TO}?subject=${encodeURIComponent(`[L&D] ${dstr} 교육 일정`)}`;
+}
+document.getElementById('mailBtn').onclick=openMail;
+document.getElementById('mailClose').onclick=closeMail;
+document.getElementById('mailOverlay').onclick=(e)=>{ if(e.target.id==='mailOverlay') closeMail(); };
+document.getElementById('mailDate').onchange=renderMailPreview;
+document.getElementById('mailCopy').onclick=copyMailTable;
+document.getElementById('mailOutlook').onclick=openOutlookDraft;
 
 function renderAll(){ renderLegend(); renderCalendar(); }
 
@@ -1221,7 +1284,7 @@ document.getElementById('authClose').onclick=closeAuth;
 document.getElementById('authOverlay').onclick=(e)=>{ if(e.target.id==='authOverlay') closeAuth(); };
 document.getElementById('modalClose').onclick=closeModal;
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeModal(); };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeModal(); closeManage(); closeAuth(); closeMembers(); closeChangelog(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeModal(); closeManage(); closeAuth(); closeMembers(); closeChangelog(); closeMail(); } });
 
 /* ===== 초기 로딩 ===== */
 async function init(){
