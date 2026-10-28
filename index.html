@@ -167,7 +167,7 @@
     font-size:13px;font-family:inherit;padding:0;margin-top:2px;}
   .mode-switch:hover{color:var(--ink);}
   .tbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;}
-  table.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:960px;}
+  table.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:1040px;}
   .tbl thead th{position:sticky;top:0;background:#FAFBFD;border-bottom:1px solid var(--line);text-align:left;
     padding:9px 8px;font-weight:500;color:var(--ink-2);font-size:12px;white-space:nowrap;}
   .tbl tbody td{border-bottom:1px solid var(--line-2);padding:3px 4px;}
@@ -175,6 +175,7 @@
   .tbl input,.tbl select{width:100%;border:1px solid transparent;background:transparent;border-radius:7px;
     padding:6px 7px;font-family:inherit;font-size:13px;color:var(--ink);}
   .tbl input.num,.tbl select{font-variant-numeric:tabular-nums;}
+  .tbl select[data-f="site"]{min-width:104px;padding-right:22px;text-overflow:clip;}
   .tbl input:hover,.tbl select:hover{border-color:var(--line);}
   .tbl input:focus,.tbl select:focus{outline:none;border-color:var(--ink);background:#fff;box-shadow:0 0 0 3px rgba(22,32,46,.06);}
   .tbl input:disabled,.tbl select:disabled{color:var(--ink-3);}
@@ -1039,7 +1040,7 @@ async function renderTableMode(){
   body.appendChild(filterRow);
   const wrap=document.createElement('div'); wrap.className='tbl-wrap';
   wrap.innerHTML=`<table class="tbl"><thead><tr>
-    <th style="width:96px;">사업장</th>
+    <th style="width:118px;min-width:118px;">사업장</th>
     <th style="min-width:200px;">교육명</th>
     <th style="width:128px;">시작일</th>
     <th style="width:128px;">종료일</th>
@@ -1211,6 +1212,7 @@ const CHANGELOG = [
   '일요일 칸에 Work Week(WWnn) 표시, 날짜 상세 팝업을 사업장별로 구역을 나눠 표시, 사업장별 교육 목록에도 복사 기능 추가',
   '등록/수정 폼에 사업장 선택 항목 추가 — 복사하거나 수정할 때 사업장을 변경할 수 있도록 개선',
   '잘못 입력된 공휴일 정정 (2026-09-28 은 대체공휴일이 아님) 및 2027년 공휴일 전체 검증',
+  'Table 등록·수정 화면에서 사업장 칸이 잘려 보이던 문제 수정',
   '"오늘 일정 메일" 버튼 추가 — 사업장별 교육 일정 표를 복사해 Outlook 새 메일(받는 사람 TLND)에 바로 붙여넣기',
 ];
 function openChangelog(){ renderChangelogList(); document.getElementById('changelogOverlay').classList.add('open'); }
