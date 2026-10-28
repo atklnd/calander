@@ -179,6 +179,16 @@
   .tbl input:hover,.tbl select:hover{border-color:var(--line);}
   .tbl input:focus,.tbl select:focus{outline:none;border-color:var(--ink);background:#fff;box-shadow:0 0 0 3px rgba(22,32,46,.06);}
   .tbl input:disabled,.tbl select:disabled{color:var(--ink-3);}
+  .tbl-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+  .tbl-month{display:inline-flex;align-items:center;gap:8px;font-size:14px;white-space:nowrap;}
+  .tbl-month select{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);}
+  .tbl-foot{display:flex;align-items:center;gap:10px;margin-top:10px;position:sticky;bottom:0;background:var(--surface);padding:8px 0;}
+  .tbl-status{flex:1;font-size:13px;color:var(--ink-3);}
+  .tbl-status.dirty{color:#B45309;}
+  .tbl-status.ok{color:#15803D;}
+  .tbl-foot .btn-cancel:disabled{opacity:.45;cursor:default;}
+  .tbl tbody tr.row-new td:first-child{box-shadow:inset 4px 0 0 #2F6BFF;}
+  .tbl tbody tr.row-mod td:first-child{box-shadow:inset 4px 0 0 #F59E0B;}
   .tbl-del{border:none;background:transparent;cursor:pointer;color:var(--ink-3);border-radius:7px;padding:6px 7px;font-size:14px;}
   .tbl-del:hover{background:#FCEBEE;color:var(--red);}
   .tbl-copy{border:1px solid var(--line);background:var(--surface);cursor:pointer;color:var(--ink-2);border-radius:7px;
@@ -558,7 +568,7 @@ function renderWeek(weekStart){
     bg.className=cls; bg.style.gridColumn=(ci+1);
     const dcls=(isSun||isHoli)?' redday':(isSat?' blueday':'');
     bg.innerHTML=`<div class="cell-top"><span class="date${dcls} num">${d.getDate()}</span>${isHoli?`<span class="holi">${esc(holi)}</span>`:''}</div>${ci===0?`<div class="ww-tag num">WW${getWorkWeek(d)}</div>`:''}`;
-    if(inMonth){ bg.style.cursor='pointer'; bg.onclick=()=>openDay(dstr); }
+    if(inMonth && isBiz(dstr)){ bg.style.cursor='pointer'; bg.title='클릭해서 이 날짜에 교육 등록'; bg.onclick=()=>openQuickAdd(dstr); }
     week.appendChild(bg);
   });
 
@@ -747,14 +757,26 @@ function renderAuthForm(){
 }
 
 /* ===== 교육 등록·관리 (사업장별) ===== */
-let manageSite=null, mgmtView='picker';
+let manageSite=null, mgmtView='picker', quickDate=null, lastSite=null;
 
 function openManage(){ if(!currentUser){ openAuth('login'); return; } renderSitePicker(); document.getElementById('manageOverlay').classList.add('open'); }
+function openQuickAdd(dstr){
+  if(!currentUser){ openAuth('login'); return; }
+  quickDate=dstr;
+  manageSite = lastSite || Object.keys(SITES)[0];
+  document.querySelector('#manageOverlay .modal').classList.remove('wide');
+  document.getElementById('manageOverlay').classList.add('open');
+  renderCourseForm(null);
+}
 function closeManage(){
+  if(!tblConfirmLeave()) return;
+  tblReset();
   document.getElementById('manageOverlay').classList.remove('open');
   document.querySelector('#manageOverlay .modal').classList.remove('wide');
 }
 function goBack(){
+  if(!tblConfirmLeave()) return;
+  tblReset();
   if(mgmtView==='form') renderCourseList();
   else if(mgmtView==='list') renderSitePicker();
   else if(mgmtView==='table') renderSitePicker();
@@ -843,7 +865,9 @@ async function deleteTraining(id){
 function renderCourseForm(rid){
   mgmtView='form'; const s=manageSite;
   const editing = rid!=null;
-  const base=`${viewY}-${String(viewM+1).padStart(2,'0')}-15`;
+  const quick = quickDate!=null;
+  const base = quick ? quickDate : `${viewY}-${String(viewM+1).padStart(2,'0')}-15`;
+  quickDate=null;
   const t = editing ? trainings.find(x=>x.id===rid)
     : {title:'',startDate:base,endDate:base,startTime:'09:00',endTime:'12:00',instructor:'',room:'',owner:''};
   if(editing && currentUser && currentUser.id!==t.createdBy && !currentUser.isAdmin){
@@ -851,7 +875,7 @@ function renderCourseForm(rid){
     document.getElementById('mgmtBody').innerHTML='<p class="empty">이 교육은 등록자만 수정할 수 있습니다.</p>';
     return;
   }
-  setHeader(`<span class="ttag" style="${styleVars(s)}">${s}</span> ${editing?'✏️ 교육 수정':'➕ 교육 추가'}`, true);
+  setHeader(`<span class="ttag" style="${styleVars(s)}">${s}</span> ${editing?'✏️ 교육 수정':(quick?`➕ ${+base.slice(5,7)}월 ${+base.slice(8,10)}일 교육 등록`:'➕ 교육 추가')}`, !quick);
   const body=document.getElementById('mgmtBody');
   body.innerHTML=`
     <div class="form">
@@ -894,7 +918,7 @@ function renderCourseForm(rid){
     el('attachCurrent').innerHTML='<span style="color:var(--ink-3);font-size:12.5px;">삭제 예정 (저장 시 반영)</span>';
   };
   el('fTitle').focus();
-  el('fCancel').onclick=renderCourseList;
+  el('fCancel').onclick=quick?closeManage:renderCourseList;
   if(editing) el('fDel').onclick=async ()=>{
     if(!confirm('이 교육을 삭제할까요?')) return;
     await deleteTraining(rid); renderCalendar(); renderLegend(); renderCourseList();
@@ -935,8 +959,10 @@ function renderCourseForm(rid){
         const {error}=await sb.from('trainings').insert(Object.assign({created_by:currentUser.id}, payload));
         if(error) throw error;
       }
+      lastSite = selSite;
       await loadTrainings();
-      renderCalendar(); renderLegend(); renderCourseList();
+      renderCalendar(); renderLegend();
+      if(quick) closeManage(); else renderCourseList();
     }catch(e){
       console.error(e);
       fErr.textContent=e.message||'저장에 실패했습니다.';
@@ -1011,14 +1037,39 @@ function exportExcel(){
   XLSX.writeFile(wb, fname);
 }
 
-/* ===== Table 형태로 등록·수정 (전체 사업장 한 화면) ===== */
+/* ===== Table 형태로 등록·수정 (월별 보기 + 저장/취소) ===== */
 let tableFilter = {};
 let tableFilterRow = null;
+let tblMonth = '';              // 'YYYY-MM' 또는 'all'
+let tblPending = {};            // 기존 행의 저장 전 수정값 { id: {필드:값} }
+let tblNew = [];                // 저장 전 새 행(추가·복사)
+let tblSeq = 0;
+let tblFlash = '';              // 저장/취소 결과 안내 문구
+const TBL_COL = {site:'site',title:'title',startDate:'start_date',endDate:'end_date',startTime:'start_time',endTime:'end_time',instructor:'instructor',room:'room',owner:'owner',capacity:'capacity',memo:'memo'};
+
+const tblDirtyCount = () => Object.keys(tblPending).length + tblNew.length;
+const tblYM = (y,m) => `${y}-${String(m).padStart(2,'0')}`;
+function tblInMonth(t){ return tblMonth==='all' || (t.startDate<=tblMonth+'-31' && t.endDate>=tblMonth+'-01'); }
+function tblView(t){ return Object.assign({}, t, tblPending[t.id]||{}); }
+function tblVisibleExisting(){
+  return trainings.filter(t=>tableFilter[t.site] && tblInMonth(t))
+    .slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)||a.startTime.localeCompare(b.startTime));
+}
+function tblMonthLabel(k){ if(k==='all') return '전체 기간'; const [y,m]=k.split('-'); return `${y}년 ${+m}월`; }
+function tblConfirmLeave(){
+  const open=document.getElementById('manageOverlay').classList.contains('open');
+  if(open && mgmtView==='table' && tblDirtyCount()>0){
+    return confirm(`저장하지 않은 변경 ${tblDirtyCount()}건이 있습니다.\n저장하지 않고 나갈까요?`);
+  }
+  return true;
+}
+function tblReset(){ tblPending={}; tblNew=[]; tblFlash=''; }
+window.addEventListener('beforeunload', e=>{ if(tblDirtyCount()>0){ e.preventDefault(); e.returnValue=''; } });
 
 function renderTableFilterChips(container){
   container.innerHTML='';
   Object.keys(SITES).forEach(s=>{
-    const cnt=trainings.filter(t=>t.site===s).length;
+    const cnt=trainings.filter(t=>t.site===s && tblInMonth(t)).length;
     const b=document.createElement('button');
     b.className='site-chip';
     b.setAttribute('aria-pressed', tableFilter[s]);
@@ -1028,17 +1079,42 @@ function renderTableFilterChips(container){
   });
 }
 
+function tblMonthKeys(){
+  const cur=tblYM(viewY,viewM+1);
+  let lo=cur, hi=cur;
+  trainings.forEach(t=>{ const a=t.startDate.slice(0,7), b=t.endDate.slice(0,7); if(a<lo) lo=a; if(b>hi) hi=b; });
+  let [y,m]=hi.split('-').map(Number); m+=2; while(m>12){ m-=12; y++; } hi=tblYM(y,m);
+  const out=[]; let [cy,cm]=lo.split('-').map(Number);
+  for(let i=0;i<240;i++){ const k=tblYM(cy,cm); out.push(k); if(k>=hi) break; cm++; if(cm>12){ cm=1; cy++; } }
+  return out;
+}
+function tblRenderMonthSel(){
+  const sel=document.getElementById('tblMonthSel'); if(!sel) return;
+  const opt=(k)=>{
+    const n = k==='all' ? trainings.length : trainings.filter(t=>t.startDate<=k+'-31' && t.endDate>=k+'-01').length;
+    return `<option value="${k}" ${k===tblMonth?'selected':''}>${tblMonthLabel(k)} (${n}건)</option>`;
+  };
+  sel.innerHTML = opt('all') + tblMonthKeys().map(opt).join('');
+  sel.value = tblMonth;
+}
+
 async function renderTableMode(){
-  mgmtView='table';
+  mgmtView='table'; tblReset();
   Object.keys(SITES).forEach(s=>{ tableFilter[s]=true; });
+  tblMonth = tblYM(viewY, viewM+1);
   document.querySelector('#manageOverlay .modal').classList.add('wide');
   setHeader('📊 Table 형태로 등록·수정', true);
   const body=document.getElementById('mgmtBody');
-  body.innerHTML='<p class="pick-guide">엑셀 다운로드와 같은 형식입니다. 셀을 바로 수정하거나 아래에서 행을 추가할 수 있습니다. 모든 항목이 완전히 같은 행은 같은 색으로 자동 표시됩니다.</p>';
-  const filterRow=document.createElement('div'); filterRow.className='legend'; filterRow.style.marginBottom='12px';
+  body.innerHTML='<p class="pick-guide">셀을 수정하거나 행을 추가·복사한 뒤, 아래 <b>💾 저장</b>을 눌러야 반영됩니다. (취소하면 변경 전으로 돌아갑니다) 모든 항목이 완전히 같은 행은 같은 색으로 표시됩니다.</p>';
+  const bar=document.createElement('div'); bar.className='tbl-toolbar';
+  bar.innerHTML='<label class="tbl-month">📅 월 선택 <select id="tblMonthSel"></select></label>';
+  const filterRow=document.createElement('div'); filterRow.className='legend';
   tableFilterRow=filterRow;
+  bar.appendChild(filterRow);
+  body.appendChild(bar);
   renderTableFilterChips(filterRow);
-  body.appendChild(filterRow);
+  tblRenderMonthSel();
+  document.getElementById('tblMonthSel').onchange=(e)=>{ tblMonth=e.target.value; renderTableFilterChips(filterRow); renderTableRows(); };
   const wrap=document.createElement('div'); wrap.className='tbl-wrap';
   wrap.innerHTML=`<table class="tbl"><thead><tr>
     <th style="width:118px;min-width:118px;">사업장</th>
@@ -1055,10 +1131,15 @@ async function renderTableMode(){
     <th style="width:88px;"></th>
   </tr></thead><tbody id="tblBody"></tbody></table>`;
   body.appendChild(wrap);
-  const addBtn=document.createElement('button');
-  addBtn.className='btn-add'; addBtn.style.marginTop='10px'; addBtn.textContent='➕ 행 추가';
-  addBtn.onclick=addTableRow;
-  body.appendChild(addBtn);
+  const foot=document.createElement('div'); foot.className='tbl-foot';
+  foot.innerHTML=`<button class="btn-add" id="tblAdd">➕ 행 추가</button>
+    <span id="tblStatus" class="tbl-status"></span>
+    <button class="btn-cancel" id="tblCancel">✖️ 취소</button>
+    <button class="btn-save" id="tblSave">💾 저장</button>`;
+  body.appendChild(foot);
+  document.getElementById('tblAdd').onclick=tblAddRow;
+  document.getElementById('tblCancel').onclick=tblCancel;
+  document.getElementById('tblSave').onclick=tblSave;
   renderTableRows();
 }
 
@@ -1080,65 +1161,189 @@ function computeDuplicateColors(rows){
   return colorOf;
 }
 
+function tblViewsForColor(){
+  const norm=(v,key)=>{
+    const s=(x)=>String(x??'').trim();
+    const cap = (v.capacity===''||v.capacity==null) ? null : Number(v.capacity);
+    return {id:key, site:v.site, title:s(v.title), startDate:v.startDate, endDate:v.endDate,
+      startTime:s(v.startTime).slice(0,5), endTime:s(v.endTime).slice(0,5),
+      instructor:s(v.instructor), room:s(v.room), owner:s(v.owner), capacity:cap, memo:s(v.memo),
+      attachmentPath:v.attachmentPath||null};
+  };
+  return tblVisibleExisting().map(t=>norm(tblView(t),String(t.id))).concat(tblNew.map(n=>norm(n,n.tmp)));
+}
+function tblRecolor(){
+  const colors=computeDuplicateColors(tblViewsForColor());
+  document.querySelectorAll('#tblBody tr[data-key]').forEach(tr=>{ tr.style.background = colors[tr.dataset.key] || ''; });
+}
+function tblUpdateStatus(){
+  const st=document.getElementById('tblStatus'); if(!st) return;
+  const n=tblDirtyCount();
+  const sv=document.getElementById('tblSave'), ca=document.getElementById('tblCancel');
+  if(sv) sv.disabled = n===0;
+  if(ca) ca.disabled = n===0;
+  if(n>0){
+    tblFlash='';
+    const mod=Object.keys(tblPending).length;
+    st.className='tbl-status dirty';
+    st.textContent=`● 저장되지 않은 변경 ${n}건` + (tblNew.length||mod ? ` (신규 ${tblNew.length} · 수정 ${mod})` : '');
+  } else if(tblFlash){
+    st.className='tbl-status ok'; st.textContent=tblFlash;
+  } else {
+    st.className='tbl-status'; st.textContent='변경사항 없음';
+  }
+}
+
+function tblSet(key,isNew,f,val){
+  if(isNew){ const n=tblNew.find(x=>x.tmp===key); if(n) n[f]=val; return; }
+  const t=trainings.find(x=>x.id===key); if(!t) return;
+  const nz=(x)=>{ const s=String(x??''); return f==='startTime'||f==='endTime' ? s.slice(0,5) : s; };
+  if(nz(t[f])===nz(val)){
+    if(tblPending[key]){ delete tblPending[key][f]; if(!Object.keys(tblPending[key]).length) delete tblPending[key]; }
+  } else { (tblPending[key] ||= {})[f]=val; }
+}
+function tblOnInput(tr,inp,key,isNew){
+  const f=inp.dataset.f, val=inp.value;
+  tblSet(key,isNew,f,val);
+  if(f==='startDate'){
+    const ei=tr.querySelector('[data-f="endDate"]');
+    if(val && ei.value && ei.value<val){ ei.value=val; tblSet(key,isNew,'endDate',val); }
+  }
+  tr.classList.toggle('row-new', isNew);
+  tr.classList.toggle('row-mod', !isNew && !!tblPending[key]);
+  tblRecolor(); tblUpdateStatus();
+}
+
+function tblBuildRow(v,key,isNew){
+  const canEdit = isNew || (currentUser && (currentUser.id===v.createdBy || currentUser.isAdmin));
+  const dis = canEdit?'':'disabled';
+  const tr=document.createElement('tr'); tr.dataset.key=String(key);
+  if(isNew) tr.className='row-new'; else if(tblPending[key]) tr.className='row-mod';
+  const siteOpts=Object.keys(SITES).map(s=>`<option value="${s}" ${s===v.site?'selected':''}>${s}</option>`).join('');
+  tr.innerHTML=`
+    <td><select data-f="site" ${dis}>${siteOpts}</select></td>
+    <td><input data-f="title" value="${esc(v.title)}" placeholder="${isNew?'교육명 입력':''}" ${dis}></td>
+    <td><input type="date" class="num" data-f="startDate" value="${v.startDate}" ${dis}></td>
+    <td><input type="date" class="num" data-f="endDate" value="${v.endDate}" ${dis}></td>
+    <td><input type="time" class="num" data-f="startTime" value="${v.startTime}" ${dis}></td>
+    <td><input type="time" class="num" data-f="endTime" value="${v.endTime}" ${dis}></td>
+    <td><input data-f="instructor" value="${esc(v.instructor)}" ${dis}></td>
+    <td><input data-f="room" value="${esc(v.room)}" ${dis}></td>
+    <td><input data-f="owner" value="${esc(v.owner)}" ${dis}></td>
+    <td><input type="number" min="0" class="num" data-f="capacity" value="${v.capacity!=null?v.capacity:''}" placeholder="-" ${dis}></td>
+    <td><input data-f="memo" value="${esc(v.memo||'')}" placeholder="주의사항 등" ${dis}></td>
+    <td><div style="display:flex;gap:2px;"><button class="tbl-copy" title="복사해서 새 행 만들기">📋 복사</button>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</div></td>`;
+  tr.querySelector('.tbl-copy').onclick=()=>tblCopy(key,isNew);
+  if(canEdit){
+    tr.querySelectorAll('[data-f]').forEach(inp=>inp.addEventListener('input',()=>tblOnInput(tr,inp,key,isNew)));
+    tr.querySelector('.tbl-del').onclick=async ()=>{
+      if(isNew){ tblNew=tblNew.filter(x=>x.tmp!==key); renderTableRows(); return; }
+      if(!confirm('이 교육을 삭제할까요? (삭제는 바로 반영됩니다)')) return;
+      await deleteTraining(key);
+      delete tblPending[key];
+      renderCalendar(); renderLegend(); renderTableFilterChips(tableFilterRow); tblRenderMonthSel(); renderTableRows();
+    };
+  }
+  return tr;
+}
+
 function renderTableRows(){
   const tb=document.getElementById('tblBody'); if(!tb) return;
   tb.innerHTML='';
-  const rows=trainings.filter(t=>tableFilter[t.site])
-    .slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)||a.startTime.localeCompare(b.startTime));
-  if(!rows.length){
-    const msg = trainings.length
-      ? '선택한 사업장에 등록된 교육이 없습니다.'
-      : '등록된 교육이 없습니다. 아래 <b>+ 행 추가</b>로 등록하세요.';
-    tb.innerHTML=`<tr><td colspan="12" style="padding:18px;color:var(--ink-3);">${msg}</td></tr>`;
+  const existing=tblVisibleExisting();
+  if(!existing.length && !tblNew.length){
+    tb.innerHTML=`<tr><td colspan="12" style="padding:18px;color:var(--ink-3);">${esc(tblMonthLabel(tblMonth))}에 표시할 교육이 없습니다. 아래 <b>➕ 행 추가</b>로 등록하세요.</td></tr>`;
+    tblUpdateStatus(); return;
+  }
+  existing.forEach(t=>tb.appendChild(tblBuildRow(tblView(t),t.id,false)));
+  tblNew.forEach(n=>tb.appendChild(tblBuildRow(n,n.tmp,true)));
+  tblRecolor(); tblUpdateStatus();
+}
+
+function tblDefaultDate(){
+  const ym = tblMonth==='all' ? tblYM(viewY,viewM+1) : tblMonth;
+  const t=iso(TODAY); if(t.slice(0,7)===ym) return t;
+  for(let d=1; d<=28; d++){ const s=`${ym}-${String(d).padStart(2,'0')}`; if(isBiz(s)) return s; }
+  return `${ym}-01`;
+}
+function tblFocusNew(tmp,field){
+  requestAnimationFrame(()=>{
+    const tr=document.querySelector(`#tblBody tr[data-key="${tmp}"]`);
+    if(tr){ tr.scrollIntoView({block:'center'}); const i=tr.querySelector(`[data-f="${field}"]`); i&&i.focus(); }
+  });
+}
+function tblAddRow(){
+  if(!currentUser){ openAuth('login'); return; }
+  const d=tblDefaultDate();
+  const site = Object.keys(SITES).find(s=>tableFilter[s]) || Object.keys(SITES)[0];
+  const n={tmp:'n'+(++tblSeq), site, title:'', startDate:d, endDate:d, startTime:'09:00', endTime:'12:00',
+    instructor:'', room:'', owner:'', capacity:'', memo:'', attachmentPath:null, attachmentName:null};
+  tblNew.push(n); renderTableRows(); tblFocusNew(n.tmp,'title');
+}
+function tblCopy(key,isNew){
+  if(!currentUser){ openAuth('login'); return; }
+  let src;
+  if(isNew) src=tblNew.find(x=>x.tmp===key);
+  else { const t=trainings.find(x=>x.id===key); src=t&&tblView(t); }
+  if(!src) return;
+  const n={tmp:'n'+(++tblSeq), site:src.site, title:src.title, startDate:src.startDate, endDate:src.endDate,
+    startTime:src.startTime, endTime:src.endTime, instructor:src.instructor||'', room:src.room||'', owner:src.owner||'',
+    capacity:src.capacity==null?'':String(src.capacity), memo:src.memo||'',
+    attachmentPath:src.attachmentPath||null, attachmentName:src.attachmentName||null};
+  tblNew.push(n); renderTableRows(); tblFocusNew(n.tmp,'startDate');
+}
+function tblCancel(){
+  if(tblDirtyCount()===0) return;
+  if(!confirm(`변경한 ${tblDirtyCount()}건을 모두 취소하고 저장된 상태로 되돌릴까요?`)) return;
+  tblPending={}; tblNew=[]; tblFlash='↩️ 변경 내용을 취소했습니다.';
+  renderTableRows();
+}
+
+async function tblSave(){
+  if(!currentUser){ openAuth('login'); return; }
+  if(tblDirtyCount()===0) return;
+  // 1) 필수값 검사
+  const need=(v)=> String(v.title||'').trim() && v.startDate && v.endDate && v.startTime && v.endTime;
+  const bad = tblNew.find(n=>!need(n)) || Object.keys(tblPending).map(id=>trainings.find(t=>String(t.id)===id)).filter(Boolean).find(t=>!need(tblView(t)));
+  if(bad){
+    const key = bad.tmp || String(bad.id);
+    alert('교육명·시작일·종료일·시작/종료 시간이 비어 있는 행이 있습니다. 채우거나 해당 행을 삭제해 주세요.');
+    const tr=document.querySelector(`#tblBody tr[data-key="${key}"]`);
+    if(tr){ tr.scrollIntoView({block:'center'}); tr.style.outline='2px solid var(--red)'; }
     return;
   }
-  const colMap={site:'site',title:'title',startDate:'start_date',endDate:'end_date',startTime:'start_time',endTime:'end_time',instructor:'instructor',room:'room',owner:'owner',capacity:'capacity',memo:'memo'};
-  const dupColors = computeDuplicateColors(rows);
-  rows.forEach(t=>{
-    const canEdit = currentUser && (currentUser.id===t.createdBy || currentUser.isAdmin);
-    const tr=document.createElement('tr'); tr.dataset.id=t.id;
-    if(dupColors[t.id]) tr.style.background = dupColors[t.id];
-    const siteOpts=Object.keys(SITES).map(s=>`<option value="${s}" ${s===t.site?'selected':''}>${s}</option>`).join('');
-    tr.innerHTML=`
-      <td><select data-f="site" ${canEdit?'':'disabled'}>${siteOpts}</select></td>
-      <td><input data-f="title" value="${esc(t.title)}" ${canEdit?'':'disabled'}></td>
-      <td><input type="date" class="num" data-f="startDate" value="${t.startDate}" ${canEdit?'':'disabled'}></td>
-      <td><input type="date" class="num" data-f="endDate" value="${t.endDate}" ${canEdit?'':'disabled'}></td>
-      <td><input type="time" class="num" data-f="startTime" value="${t.startTime}" ${canEdit?'':'disabled'}></td>
-      <td><input type="time" class="num" data-f="endTime" value="${t.endTime}" ${canEdit?'':'disabled'}></td>
-      <td><input data-f="instructor" value="${esc(t.instructor)}" ${canEdit?'':'disabled'}></td>
-      <td><input data-f="room" value="${esc(t.room)}" ${canEdit?'':'disabled'}></td>
-      <td><input data-f="owner" value="${esc(t.owner)}" ${canEdit?'':'disabled'}></td>
-      <td><input type="number" min="0" class="num" data-f="capacity" value="${t.capacity!=null?t.capacity:''}" placeholder="-" ${canEdit?'':'disabled'}></td>
-      <td><input data-f="memo" value="${esc(t.memo||'')}" placeholder="주의사항 등" ${canEdit?'':'disabled'}></td>
-      <td><div style="display:flex;gap:2px;"><button class="tbl-copy" title="복사해서 새로 만들기">📋 복사</button>${canEdit?'<button class="tbl-del" title="삭제">🗑</button>':''}</div></td>`;
-    tr.querySelector('.tbl-copy').onclick=()=>duplicateRow(t.id,'table');
-    if(canEdit){
-      tr.querySelectorAll('[data-f]').forEach(inp=>{
-        inp.addEventListener('change', async ()=>{
-          const field=inp.dataset.f;
-          let val = inp.value;
-          if(field==='capacity'){ val = val.trim()===''? null : Math.max(0, parseInt(val,10)||0); inp.value = val==null?'':val; }
-          const payload={ [colMap[field]]: val };
-          if(field==='startDate'){
-            const endInput=tr.querySelector('[data-f="endDate"]');
-            if(endInput.value < val){ endInput.value = val; payload.end_date = val; }
-          }
-          const {error}=await sb.from('trainings').update(payload).eq('id', t.id);
-          if(error){ alert('저장 실패: '+error.message); }
-          await loadTrainings(); renderCalendar(); renderLegend();
-          if(mgmtView==='table') renderTableRows();
-        });
-      });
-      const delBtn=tr.querySelector('.tbl-del');
-      if(delBtn) delBtn.onclick=async ()=>{
-        if(!confirm('이 교육을 삭제할까요?')) return;
-        await deleteTraining(t.id);
-        renderCalendar(); renderLegend(); renderTableRows();
-      };
-    }
-    tb.appendChild(tr);
-  });
+  const sv=document.getElementById('tblSave'); sv.disabled=true; sv.textContent='⏳ 저장 중…';
+  let ok=0; const errs=[];
+  const fixEnd=(sd,ed)=> ed<sd ? sd : ed;
+  const numCap=(c)=> (c===''||c==null) ? null : Math.max(0, parseInt(c,10)||0);
+  // 2) 수정된 기존 행
+  for(const idStr of Object.keys(tblPending)){
+    const t=trainings.find(x=>String(x.id)===idStr); if(!t){ delete tblPending[idStr]; continue; }
+    const v=tblView(t), p=tblPending[idStr], payload={};
+    Object.keys(p).forEach(f=>{
+      let val=p[f];
+      if(f==='capacity') val=numCap(val);
+      else if(['title','instructor','room','owner','memo'].includes(f)) val=String(val).trim();
+      payload[TBL_COL[f]]=val;
+    });
+    if('startDate' in p || 'endDate' in p){ payload.start_date=v.startDate; payload.end_date=fixEnd(v.startDate,v.endDate); }
+    const {error}=await sb.from('trainings').update(payload).eq('id',t.id);
+    if(error) errs.push(`${v.title}: ${error.message}`); else { delete tblPending[idStr]; ok++; }
+  }
+  // 3) 새 행
+  for(const n of tblNew.slice()){
+    const payload={ site:n.site, title:String(n.title).trim(), start_date:n.startDate, end_date:fixEnd(n.startDate,n.endDate),
+      start_time:n.startTime, end_time:n.endTime, instructor:String(n.instructor||'').trim(), room:String(n.room||'').trim(),
+      owner:String(n.owner||'').trim(), capacity:numCap(n.capacity), memo:String(n.memo||'').trim(),
+      attachment_path:n.attachmentPath||null, attachment_name:n.attachmentName||null, created_by:currentUser.id };
+    const {error}=await sb.from('trainings').insert(payload);
+    if(error) errs.push(`${n.title}: ${error.message}`); else { tblNew=tblNew.filter(x=>x.tmp!==n.tmp); ok++; }
+  }
+  await loadTrainings(); renderCalendar(); renderLegend();
+  sv.textContent='💾 저장';
+  tblFlash = ok ? `✅ ${ok}건이 저장되어 달력에 반영되었습니다.` : '';
+  tblRenderMonthSel(); renderTableFilterChips(tableFilterRow); renderTableRows();
+  if(errs.length) alert(`일부 저장에 실패했습니다 (${errs.length}건). 실패한 행은 그대로 남아 있으니 확인 후 다시 저장해 주세요.\n\n`+errs.join('\n'));
 }
 
 async function duplicateRow(id, from){
@@ -1166,23 +1371,6 @@ async function duplicateRow(id, from){
       if(tr){ tr.scrollIntoView({block:'center'}); const si=tr.querySelector('[data-f="startDate"]'); si&&si.focus(); }
     });
   }
-}
-
-async function addTableRow(){
-  if(!currentUser){ openAuth('login'); return; }
-  const base=`${viewY}-${String(viewM+1).padStart(2,'0')}-15`;
-  const defaultSite=Object.keys(SITES)[0];
-  const payload={ site:defaultSite, title:'', start_date:base, end_date:base, start_time:'09:00', end_time:'12:00',
-    instructor:'', room:'', owner:'', capacity:null, memo:'', created_by:currentUser.id };
-  const {data,error}=await sb.from('trainings').insert(payload).select().single();
-  if(error){ alert('추가 실패: '+error.message); return; }
-  tableFilter[defaultSite]=true;
-  if(tableFilterRow) renderTableFilterChips(tableFilterRow);
-  await loadTrainings(); renderCalendar(); renderLegend(); renderTableRows();
-  requestAnimationFrame(()=>{
-    const tr=document.querySelector(`#tblBody tr[data-id="${data.id}"]`);
-    if(tr){ tr.scrollIntoView({block:'center'}); const ti=tr.querySelector('[data-f="title"]'); ti&&ti.focus(); }
-  });
 }
 
 /* ===== 업데이트 내역 ===== */
@@ -1214,6 +1402,8 @@ const CHANGELOG = [
   '등록/수정 폼에 사업장 선택 항목 추가 — 복사하거나 수정할 때 사업장을 변경할 수 있도록 개선',
   '잘못 입력된 공휴일 정정 (2026-09-28 은 대체공휴일이 아님) 및 2027년 공휴일 전체 검증',
   '"Teams"(온라인) 사업장 항목 추가',
+  '달력의 날짜 빈 곳을 클릭하면 바로 해당 날짜로 교육 등록 창이 열리도록 변경 (기존 날짜 상세는 교육 막대·"더보기" 클릭)',
+  'Table 등록·수정 화면을 월별 보기(기본: 해당 월, 드롭다운으로 월 선택)로 변경하고, 행 추가·수정·복사 후 "저장/취소" 버튼으로 반영하도록 개선',
   'Table 등록·수정 화면에서 사업장 칸이 잘려 보이던 문제 수정',
   '"오늘 일정 메일" 버튼 추가 — 사업장별 교육 일정 표를 복사해 Outlook 새 메일(받는 사람 TLND)에 바로 붙여넣기',
 ];
